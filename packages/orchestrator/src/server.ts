@@ -192,6 +192,130 @@ app.post('/strategies', authMiddleware(), async (c) => {
   return c.json({ strategy: row }, 201)
 })
 
+// ── Strategy Sharing (Green tier) ───────────────────────────────────────────
+
+app.get('/strategies/:id/export', authMiddleware(), async (c) => {
+  const [row] = await getDB().select().from(strategies).where(eq(strategies.id, c.req.param('id')))
+  if (!row) return c.json({ error: 'Strategy not found' }, 404)
+  const { exportStrategy, encodeStrategyURL } = await import('./sharing.js')
+  const shared = exportStrategy(row)
+  return c.json({ strategy: shared, shareCode: encodeStrategyURL(shared) })
+})
+
+app.post('/strategies/import', authMiddleware(), async (c) => {
+  const body = await c.req.json()
+  try {
+    const { importStrategy } = await import('./sharing.js')
+    let parsed
+    if (body.shareCode) {
+      const { decodeStrategyURL } = await import('./sharing.js')
+      parsed = decodeStrategyURL(body.shareCode)
+    } else {
+      parsed = importStrategy(body)
+    }
+    const [row] = await getDB().insert(strategies).values({
+      name: parsed.name,
+      template: parsed.template,
+      mode: parsed.mode,
+      riskConfig: parsed.riskConfig,
+      allocations: parsed.allocations,
+      active: true,
+    }).returning()
+    return c.json({ strategy: row, imported: true }, 201)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400)
+  }
+})
+
+// ── Recurring Tasks (Red tier) ─────────────────────────────────────────────
+
+import { TaskScheduler } from './scheduler.js'
+let scheduler: TaskScheduler
+
+app.get('/recurring', authMiddleware(), (c) => {
+  return c.json({ recurring: scheduler?.list() ?? [] })
+})
+
+app.post('/recurring', authMiddleware(), async (c) => {
+  const body = await c.req.json()
+  if (!body.goal || !body.strategyId || !body.interval) {
+    return c.json({ error: 'goal, strategyId, and interval are required' }, 400)
+  }
+  try {
+    const task = scheduler.schedule({
+      id: crypto.randomUUID(),
+      goal: body.goal,
+      strategyId: body.strategyId,
+      interval: body.interval,
+    })
+    return c.json({ recurring: task }, 201)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400)
+  }
+})
+
+app.delete('/recurring/:id', authMiddleware(), (c) => {
+  const ok = scheduler.cancel(c.req.param('id'))
+  return c.json({ cancelled: ok })
+})
+
+// ── Chain Triggers (Red tier) ──────────────────────────────────────────────
+
+import { ChainTriggerEngine } from './triggers.js'
+let triggerEngine: ChainTriggerEngine
+
+app.get('/triggers', authMiddleware(), (c) => {
+  return c.json({ triggers: triggerEngine?.list() ?? [] })
+})
+
+app.post('/triggers', authMiddleware(), async (c) => {
+  const body = await c.req.json()
+  if (!body.name || !body.condition || !body.goal || !body.strategyId) {
+    return c.json({ error: 'name, condition, goal, and strategyId are required' }, 400)
+  }
+  const trigger = triggerEngine.register({
+    id: crypto.randomUUID(),
+    name: body.name,
+    condition: body.condition,
+    goal: body.goal,
+    strategyId: body.strategyId,
+    enabled: true,
+    cooldownMs: body.cooldownMs ?? 30 * 60 * 1000,
+  })
+  return c.json({ trigger }, 201)
+})
+
+app.delete('/triggers/:id', authMiddleware(), (c) => {
+  const ok = triggerEngine.remove(c.req.param('id'))
+  return c.json({ removed: ok })
+})
+
+// ── Clarity Analysis (Yellow tier) ─────────────────────────────────────────
+
+app.get('/analyze/:contractId', authMiddleware(), async (c) => {
+  try {
+    const { analyzeContract } = await import('@nocodeclarity/tools/read/clarity')
+    const network = (process.env['STACKS_NETWORK'] ?? 'testnet') as 'mainnet' | 'testnet'
+    const result = await analyzeContract(c.req.param('contractId'), network)
+    return c.json(result)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400)
+  }
+})
+
+// ── Signer Health (Yellow tier) ────────────────────────────────────────────
+
+app.get('/signers', async (c) => {
+  try {
+    const { getSignerHealth } = await import('@nocodeclarity/tools/read/signers')
+    const network = (process.env['STACKS_NETWORK'] ?? 'testnet') as 'mainnet' | 'testnet'
+    const health = await getSignerHealth(network)
+    return c.json(health)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -227,9 +351,41 @@ async function main() {
     }).catch(err => console.warn('AIBTC module load failed (non-fatal):', err))
   }
 
+  // Start recurring task scheduler
+  scheduler = new TaskScheduler(async (goal, strategyId) => {
+    const [strategyRow] = await db.select().from(strategies).where(eq(strategies.id, strategyId))
+    if (!strategyRow) return
+    const strategy = {
+      id: strategyRow.id, name: strategyRow.name,
+      template: strategyRow.template as any, mode: strategyRow.mode as any,
+      riskConfig: strategyRow.riskConfig as any, allocations: strategyRow.allocations as any,
+      active: strategyRow.active, createdAt: strategyRow.createdAt.getTime?.() ?? Date.now(),
+    }
+    await swarm.execute(goal, strategy)
+  })
+  scheduler.start()
+
+  // Start chain trigger engine
+  const { captureChainSnapshot } = await import('@nocodeclarity/tools/read')
+  triggerEngine = new ChainTriggerEngine(
+    () => captureChainSnapshot(address, '', network),
+    async (goal, strategyId) => {
+      const [strategyRow] = await db.select().from(strategies).where(eq(strategies.id, strategyId))
+      if (!strategyRow) return
+      const strategy = {
+        id: strategyRow.id, name: strategyRow.name,
+        template: strategyRow.template as any, mode: strategyRow.mode as any,
+        riskConfig: strategyRow.riskConfig as any, allocations: strategyRow.allocations as any,
+        active: strategyRow.active, createdAt: strategyRow.createdAt.getTime?.() ?? Date.now(),
+      }
+      await swarm.execute(goal, strategy)
+    },
+  )
+
   const port = parseInt(process.env['ORCHESTRATOR_PORT'] ?? '3001')
+  const mode = process.env['SOLO_MODE'] === 'true' ? 'SOLO' : 'PRODUCTION'
   serve({ fetch: app.fetch, port })
-  console.log(`✓ NoCodeClarity AI orchestrator running on :${port}`)
+  console.log(`✓ NoCodeClarity AI orchestrator running on :${port} [${mode}]`)
   console.log(`  Wallet: ${address}`)
   console.log(`  Network: ${network}`)
 }
