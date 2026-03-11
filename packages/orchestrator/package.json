@@ -1,0 +1,26 @@
+{
+  "name": "@nocodeclarity/orchestrator",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "scripts": {
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@nocodeclarity/agents": "workspace:*",
+    "@nocodeclarity/tools": "workspace:*",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@stacks/wallet-sdk": "^6.2.0",
+    "hono": "^4.0.0",
+    "@hono/node-server": "^1.9.0",
+    "drizzle-orm": "^0.30.0",
+    "drizzle-kit": "^0.20.0",
+    "postgres": "^3.4.0",
+    "uuid": "^9.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.0"
+  }
+}

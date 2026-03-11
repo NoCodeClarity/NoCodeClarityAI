@@ -1,0 +1,19 @@
+{
+  "name": "nocodeclarity-ai",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "swarm:dev": "bun run --watch packages/orchestrator/src/server.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  }
+}
