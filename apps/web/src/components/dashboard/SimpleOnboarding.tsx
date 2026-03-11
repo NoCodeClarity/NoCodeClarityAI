@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useWallet } from '@/lib/WalletProvider'
+import { WalletSelector } from '@/components/wallet/WalletSelector'
 
 const RISK_PROFILES = [
   {
@@ -28,33 +30,16 @@ const RISK_PROFILES = [
 
 export function SimpleOnboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState<'connect' | 'risk' | 'amount' | 'deploy'>('connect')
-  const [connecting, setConnecting] = useState(false)
+  const { connected } = useWallet()
   const [deploying, setDeploying] = useState(false)
   const [risk, setRisk] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
   const [threshold, setThreshold] = useState('0.001')
 
   const selectedProfile = RISK_PROFILES.find(p => p.id === risk)!
 
-  async function connectWallet() {
-    setConnecting(true)
-    try {
-      // Dynamic import to avoid SSR issues
-      const { showConnect } = await import('@stacks/connect')
-      await new Promise<void>((resolve, reject) => {
-        showConnect({
-          appDetails: { name: 'NoCodeClarity AI', icon: '/logo.png' },
-          onFinish: () => resolve(),
-          onCancel: () => reject(new Error('Wallet connection cancelled')),
-        })
-      })
-      setStep('risk')
-    } catch (e: any) {
-      if (e.message !== 'Wallet connection cancelled') {
-        console.error('Wallet connection failed:', e)
-      }
-    } finally {
-      setConnecting(false)
-    }
+  // Auto-advance to risk step when wallet connects
+  if (connected && step === 'connect') {
+    setStep('risk')
   }
 
   async function deployStrategy() {
@@ -106,15 +91,9 @@ export function SimpleOnboarding({ onComplete }: { onComplete: () => void }) {
         {/* Step 1: Connect */}
         {step === 'connect' && (
           <div className="space-y-4">
-            <div className="rounded-xl border border-zinc-800 p-6 text-center">
-              <p className="text-zinc-300 mb-4">Connect your Leather wallet to get started.</p>
-              <button
-                onClick={connectWallet}
-                disabled={connecting}
-                className="w-full py-3 rounded-lg bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-black font-semibold transition-colors"
-              >
-                {connecting ? 'Connecting...' : 'Connect Wallet'}
-              </button>
+            <div className="rounded-xl border border-zinc-800 p-6">
+              <p className="text-zinc-300 mb-4 text-center">Connect your wallet to get started.</p>
+              <WalletSelector />
             </div>
           </div>
         )}
