@@ -5,10 +5,11 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Compatible-purple)](https://github.com/Jubilee-Protocol/Openclaw-Skill-Jubilee)
 [![AIBTC](https://img.shields.io/badge/AIBTC-Network-orange)](https://aibtc.dev)
+[![Donate Crypto](https://img.shields.io/badge/Donate-Crypto-f7931a?logo=bitcoin&logoColor=white)](https://commerce.coinbase.com/checkout/122a2979-e559-44b9-bb9d-2ff0c6a3025b)
 
-> **Your AI manages Bitcoin yield on Stacks — so you don't have to.**
+> **Your AI manages Bitcoin yield on Stacks so you don't have to.**
 
-NoCodeClarity AI is the **most comprehensive AI agent platform for Stacks**. It autonomously manages sBTC yield, PoX stacking, DEX swaps across 4 protocols, lending, liquid stacking, and contract security analysis — all non-custodial, risk-gated, with a kill switch always one click away.
+NoCodeClarity AI is the **most comprehensive AI agent platform for Stacks**. It autonomously manages sBTC yield, PoX stacking, DEX swaps across 4 protocols, lending, liquid stacking, and contract security analysis. Non-custodial. Risk-gated. Kill switch always one click away.
 
 Tell it what you want in plain English. Three AI agents handle the rest.
 
@@ -18,7 +19,7 @@ Tell it what you want in plain English. Three AI agents handle the rest.
 
 | Problem | Solution |
 |---------|----------|
-| DeFi on Stacks is complex — 7 protocols, PoX cycles, sBTC peg monitoring | AI agents handle the complexity for you |
+| DeFi on Stacks is beautiful, yet complex.  7 protocols, PoX cycles, sBTC peg monitoring | AI agents handle the complexity for you |
 | One bad transaction can drain your wallet | **Risk Gate** blocks anything above your threshold |
 | You have to watch the market 24/7 | **Chain triggers** react to sBTC peg drops, balances, PoX cycles |
 | No way to automate recurring DeFi tasks | **Scheduler** runs goals on intervals (15m to 30 days) |
