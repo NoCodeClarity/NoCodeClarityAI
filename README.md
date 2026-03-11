@@ -101,6 +101,20 @@ bun run --cwd apps/web dev # Web UI on :3000
 
 Open **http://localhost:3000** → connect your Leather wallet → pick a strategy → submit your first goal.
 
+### Solo Mode (No Docker, No Database)
+
+```bash
+git clone https://github.com/NoCodeClarity/NoCodeClarityAI.git
+cd NoCodeClarityAI && bun install
+cp .env.example .env
+# Fill in: ANTHROPIC_API_KEY, WALLET_MNEMONIC
+# Add: SOLO_MODE=true
+
+bun run swarm:dev  # That's it. No Docker, no Postgres.
+```
+
+> **Solo mode** uses an in-memory store — data is lost on restart, but you're up in 30 seconds.
+
 ---
 
 ## Architecture
@@ -207,8 +221,74 @@ curl -N http://localhost:3001/stream
 | `ORCHESTRATOR_SECRET` | Recommended | API authentication secret |
 | `HIRO_API_KEY` | Optional | Hiro API key for higher rate limits |
 | `STACKS_NETWORK` | Optional | `mainnet` or `testnet` (default: `testnet`) |
+| `SOLO_MODE` | Optional | `true` for zero-config mode (no Postgres) |
 | `ORCHESTRATOR_PORT` | Optional | Server port (default: `3001`) |
 | `AIBTC_REGISTER` | Optional | `true` to register with the AIBTC network |
+
+---
+
+## Advanced Features
+
+### Recurring Tasks
+
+Schedule goals to run automatically on an interval:
+
+```bash
+curl -X POST http://localhost:3001/recurring \
+  -H "Content-Type: application/json" \
+  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
+  -d '{ "goal": "compound my Zest yield", "strategyId": "abc", "interval": "24h" }'
+# Valid intervals: 15m, 1h, 6h, 12h, 24h, 7d, 14d, 30d
+```
+
+### Chain Triggers
+
+React to on-chain conditions automatically:
+
+```bash
+curl -X POST http://localhost:3001/triggers \
+  -H "Content-Type: application/json" \
+  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
+  -d '{
+    "name": "Hedge on peg drop",
+    "condition": { "type": "peg_health_below", "threshold": 85 },
+    "goal": "swap my sBTC to STX for safety",
+    "strategyId": "abc"
+  }'
+```
+
+Supported conditions: `peg_health_below`, `peg_health_above`, `stx_balance_above`, `stx_balance_below`, `pox_cycle_ending_in`, `congestion_level`
+
+### Contract Analysis
+
+Analyze any Clarity contract for security risks before interacting:
+
+```bash
+curl http://localhost:3001/analyze/SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.alex-vault
+# Returns: riskLevel, summary, findings[], publicFunctions[]
+```
+
+### Signer Health
+
+Monitor Nakamoto signer set health and PoX cycle timing:
+
+```bash
+curl http://localhost:3001/signers
+# Returns: totalSigners, healthPct, currentCycle, blocksUntilCycleEnd, rewardPhase
+```
+
+### Strategy Sharing
+
+Export and share strategies with the community:
+
+```bash
+# Export → get a share code
+curl http://localhost:3001/strategies/abc-123/export
+
+# Import from share code
+curl -X POST http://localhost:3001/strategies/import \
+  -d '{ "shareCode": "eyJ..." }'
+```
 
 ---
 
