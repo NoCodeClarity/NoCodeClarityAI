@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Unit tests — builders
+        run: bun run --cwd packages/tools vitest run src/tests/builders.test.ts
+
+      - name: Unit tests — orchestrator
+        run: bun run --cwd packages/orchestrator vitest run src/tests/orchestrator.test.ts

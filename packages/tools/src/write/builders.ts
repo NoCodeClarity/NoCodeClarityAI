@@ -29,8 +29,10 @@ import type { UnsignedTx } from '../types/index.js'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function getNetwork(network: 'mainnet' | 'testnet') {
-  return network === 'mainnet' ? new StacksMainnet() : new StacksTestnet()
+function getNetwork(network: 'mainnet' | 'testnet' | 'devnet') {
+  if (network === 'mainnet') return new StacksMainnet()
+  if (network === 'devnet') return new StacksTestnet({ url: 'http://localhost:3999' })
+  return new StacksTestnet()
 }
 
 function makeUnsignedTx(

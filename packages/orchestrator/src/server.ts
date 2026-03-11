@@ -10,6 +10,8 @@ import type { SwarmEvent } from './index.js'
 import { getDB } from './db/client.js'
 import { strategies } from './db/schema.js'
 import { eq } from 'drizzle-orm'
+import { logger, requestLogger } from './logger.js'
+import { createChainhookHandler } from './chainhook.js'
 
 // ── Initialize wallet from mnemonic ──────────────────────────────────────────
 
@@ -45,6 +47,9 @@ app.use('*', cors({
   origin: process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000',
   credentials: true,
 }))
+
+// Structured request logging
+app.use('*', requestLogger())
 
 // Auth middleware for mutating routes
 function authMiddleware() {
@@ -406,15 +411,48 @@ async function main() {
     },
   )
 
+  // Chainhook webhook endpoint
+  const chainhookSecret = process.env['ORCHESTRATOR_SECRET'] ?? ''
+  app.post('/hooks/chainhook', createChainhookHandler(
+    async (predicateUuid, payload) => {
+      logger.info('Processing chainhook event', {
+        predicateUuid,
+        blocks: payload.apply?.length ?? 0,
+      })
+      // Evaluate triggers against chainhook events
+      if (triggerEngine) {
+        const { captureChainSnapshot } = await import('@nocodeclarity/tools/read')
+        const snapshot = await captureChainSnapshot(address, '', network)
+        await triggerEngine.evaluate(snapshot)
+      }
+    },
+    chainhookSecret,
+  ))
+
+  // ── API v1 group (all routes also available at /v1/ prefix) ──────────────
+  const v1 = new Hono()
+  v1.route('/', app)
+  const root = new Hono()
+  root.route('/v1', app)
+  root.route('/', app) // backward compat
+
   const port = parseInt(process.env['ORCHESTRATOR_PORT'] ?? '3001')
   const mode = process.env['SOLO_MODE'] === 'true' ? 'SOLO' : 'PRODUCTION'
-  serve({ fetch: app.fetch, port })
+  serve({ fetch: root.fetch, port })
+  logger.info('NoCodeClarity AI orchestrator started', {
+    port, mode, wallet: address, network,
+    apiVersion: 'v1',
+    chainhookWebhook: `http://localhost:${port}/hooks/chainhook`,
+  })
   console.log(`✓ NoCodeClarity AI orchestrator running on :${port} [${mode}]`)
   console.log(`  Wallet: ${address}`)
   console.log(`  Network: ${network}`)
+  console.log(`  API: http://localhost:${port}/v1/health`)
+  console.log(`  Chainhook: POST http://localhost:${port}/hooks/chainhook`)
 }
 
 main().catch(err => {
+  logger.error('Orchestrator failed to start', { error: err.message })
   console.error('Orchestrator failed to start:', err)
   process.exit(1)
 })
