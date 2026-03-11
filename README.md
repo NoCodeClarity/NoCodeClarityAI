@@ -382,8 +382,6 @@ MIT — see [LICENSE](LICENSE).
 
 **[NoCodeClarity](https://github.com/NoCodeClarity)** — Making Bitcoin DeFi accessible to everyone.
 
-Part of the **Jubilee Protocol** ecosystem.
-
 ---
 
 > *"The best DeFi experience is the one you don't have to manage."*
