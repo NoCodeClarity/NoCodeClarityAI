@@ -23,6 +23,11 @@ import { analyzeSnapshot, evaluateRisk, describeExecution } from '@nocodeclarity
 
 const anthropic = new Anthropic()
 
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const MAX_GOAL_LENGTH = 500
+const ACTIVE_STATUSES = ['pending', 'analyzing', 'gating', 'executing', 'confirming'] as const
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type { SwarmEvent }
@@ -132,10 +137,13 @@ export class StacksSwarm extends EventEmitter {
   }
 
   async pause(): Promise<void> {
-    // Set all pending/analyzing tasks to held
-    await getDB().update(tasks)
-      .set({ status: 'held', updatedAt: new Date() })
-      .where(eq(tasks.status, 'pending'))
+    // Halt ALL active tasks — not just pending
+    const db = getDB()
+    for (const status of ACTIVE_STATUSES) {
+      await db.update(tasks)
+        .set({ status: 'held', updatedAt: new Date() })
+        .where(eq(tasks.status, status))
+    }
   }
 
   // ── Emit helper ──────────────────────────────────────────────────────────
@@ -253,8 +261,9 @@ For transfer: { "token": "stx" | "sbtc", "amount": number_in_base_units, "recipi
       }
 
       case 'transfer': {
-        if (!params.recipient || !params.recipient.startsWith('SP')) {
-          throw new Error('Transfer requires a valid Stacks address (starts with SP)')
+        const validPrefix = this.network === 'mainnet' ? 'SP' : 'ST'
+        if (!params.recipient || !params.recipient.startsWith(validPrefix)) {
+          throw new Error(`Transfer requires a valid Stacks address (starts with ${validPrefix})`)
         }
         const amount = BigInt(Math.floor(params.amount ?? 0))
         if (params.token === 'sbtc') {
@@ -281,11 +290,24 @@ For transfer: { "token": "stx" | "sbtc", "amount": number_in_base_units, "recipi
   // ── Execute Pipeline ─────────────────────────────────────────────────────
 
   async execute(goal: string, strategy: Strategy): Promise<Task> {
-    const task = await this.createTask(goal, strategy)
-    this.emitEvent('task:created', task.id, { goal })
+    // Input sanitization
+    if (!goal || typeof goal !== 'string') {
+      throw new Error('Goal must be a non-empty string')
+    }
+    if (goal.length > MAX_GOAL_LENGTH) {
+      throw new Error(`Goal exceeds maximum length of ${MAX_GOAL_LENGTH} characters`)
+    }
+    // Strip any control characters — prevent prompt injection via hidden chars
+    const sanitizedGoal = goal.replace(/[\x00-\x1f\x7f-\x9f]/g, '').trim()
+    if (!sanitizedGoal) {
+      throw new Error('Goal is empty after sanitization')
+    }
+
+    const task = await this.createTask(sanitizedGoal, strategy)
+    this.emitEvent('task:created', task.id, { goal: sanitizedGoal })
 
     // Run pipeline asynchronously
-    this.runPipeline(task.id, goal, strategy).catch(err => {
+    this.runPipeline(task.id, sanitizedGoal, strategy).catch(err => {
       this.updateTaskStatus(task.id, 'failed')
       this.emitEvent('task:failed', task.id, { error: err.message })
     })
@@ -406,5 +428,11 @@ For transfer: { "token": "stx" | "sbtc", "amount": number_in_base_units, "recipi
     const resolver = this.pendingApprovals.get(taskId)
     if (!resolver) throw new Error(`No pending approval for task ${taskId}`)
     resolver(true)
+  }
+
+  async humanReject(taskId: string): Promise<void> {
+    const resolver = this.pendingApprovals.get(taskId)
+    if (!resolver) throw new Error(`No pending approval for task ${taskId}`)
+    resolver(false)
   }
 }

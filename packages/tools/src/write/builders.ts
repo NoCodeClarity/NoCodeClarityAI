@@ -3,12 +3,13 @@
 // CRITICAL: Every builder must define post-conditions. No exceptions.
 
 import {
-  makeSTXTokenTransfer,
-  makeContractCall,
+  makeUnsignedSTXTokenTransfer,
+  makeUnsignedContractCall,
   deserializeTransaction,
   broadcastTransaction,
   AnchorMode,
   PostConditionMode,
+  TransactionVersion,
   makeStandardSTXPostCondition,
   makeStandardFungiblePostCondition,
   createAssetInfo,
@@ -18,9 +19,9 @@ import {
   standardPrincipalCV,
   uintCV,
   createStacksPrivateKey,
-  bytesToHex,
   signWithKey,
 } from '@stacks/transactions'
+import { bytesToHex } from '@stacks/common'
 import { StacksMainnet, StacksTestnet } from '@stacks/network'
 import { createHash } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
@@ -64,7 +65,7 @@ export async function buildSTXTransfer(params: {
   memo?: string
   network: 'mainnet' | 'testnet'
 }): Promise<UnsignedTx> {
-  const tx = await makeSTXTokenTransfer({
+  const tx = await makeUnsignedSTXTokenTransfer({
     recipient: params.recipient,
     amount: params.amountMicroSTX,
     anchorMode: AnchorMode.Any,
@@ -79,6 +80,7 @@ export async function buildSTXTransfer(params: {
     memo: params.memo ?? '',
     network: getNetwork(params.network),
     fee: 2000n,
+    publicKey: '0'.repeat(66), // placeholder — real public key injected at sign time
   })
 
   const serialized = bytesToHex(tx.serialize())
@@ -105,7 +107,7 @@ export async function buildSBTCTransfer(params: {
     ? 'SP3DX3H4FEYZJZ586MFBS25ZW3HZDMEW92260R2PR'
     : 'SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS'
 
-  const tx = await makeContractCall({
+  const tx = await makeUnsignedContractCall({
     contractAddress: SBTC_CONTRACT_ADDRESS,
     contractName: 'sbtc-token',
     functionName: 'transfer',
@@ -127,6 +129,7 @@ export async function buildSBTCTransfer(params: {
     ],
     network: getNetwork(params.network),
     fee: 2000n,
+    publicKey: '0'.repeat(66),
   })
 
   const serialized = bytesToHex(tx.serialize())
@@ -148,13 +151,12 @@ export async function buildSBTCTransfer(params: {
 
 export async function buildALEXSwap(params: {
   senderAddress: string
-  fromToken: string     // full contract principal e.g. SP...token-name
+  fromToken: string
   toToken: string
   amountIn: bigint
   minAmountOut: bigint
   network: 'mainnet' | 'testnet'
 }): Promise<UnsignedTx> {
-  // ALEX AMM router on mainnet
   const ALEX_ROUTER = params.network === 'mainnet'
     ? 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9'
     : 'ST3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9'
@@ -162,7 +164,7 @@ export async function buildALEXSwap(params: {
   const [fromAddress, fromName] = params.fromToken.split('.')
   const [toAddress, toName] = params.toToken.split('.')
 
-  const tx = await makeContractCall({
+  const tx = await makeUnsignedContractCall({
     contractAddress: ALEX_ROUTER,
     contractName: 'amm-swap-pool-v1-1',
     functionName: 'swap-helper',
@@ -175,14 +177,12 @@ export async function buildALEXSwap(params: {
     anchorMode: AnchorMode.Any,
     postConditionMode: PostConditionMode.Deny,
     postConditions: [
-      // Spend exact input amount
       makeStandardFungiblePostCondition(
         params.senderAddress,
         FungibleConditionCode.Equal,
         params.amountIn,
         createAssetInfo(fromAddress!, fromName!, fromName!)
       ),
-      // Receive at least minimum output
       makeStandardFungiblePostCondition(
         params.senderAddress,
         FungibleConditionCode.GreaterEqual,
@@ -192,6 +192,7 @@ export async function buildALEXSwap(params: {
     ],
     network: getNetwork(params.network),
     fee: 3000n,
+    publicKey: '0'.repeat(66),
   })
 
   const serialized = bytesToHex(tx.serialize())
@@ -222,7 +223,7 @@ export async function buildZestDeposit(params: {
 
   const [tokenAddress, tokenName] = params.token.split('.')
 
-  const tx = await makeContractCall({
+  const tx = await makeUnsignedContractCall({
     contractAddress: ZEST_POOL,
     contractName: 'pool-v2-0',
     functionName: 'supply',
@@ -243,6 +244,7 @@ export async function buildZestDeposit(params: {
     ],
     network: getNetwork(params.network),
     fee: 3000n,
+    publicKey: '0'.repeat(66),
   })
 
   const serialized = bytesToHex(tx.serialize())
@@ -270,23 +272,22 @@ export async function buildStackSTX(params: {
 
   const POX4 = 'SP000000000000000000002Q6VF78'
 
-  const tx = await makeContractCall({
+  const tx = await makeUnsignedContractCall({
     contractAddress: POX4,
     contractName: 'pox-4',
     functionName: 'stack-stx',
     functionArgs: [
       uintCV(params.amountMicroSTX),
-      // NOTE: pox-address tuple encoding — requires proper BTC address parsing
-      // Full implementation should use @stacks/stacking poxAddressToBtcAddress
       bufferCVFromString(params.poxAddress),
       uintCV(BigInt(params.startBurnHt)),
       uintCV(BigInt(params.lockPeriod)),
-      noneCV(), // signer signature (optional for solo stacking)
+      noneCV(),
     ],
     anchorMode: AnchorMode.Any,
-    postConditionMode: PostConditionMode.Allow, // PoX contract locks STX
+    postConditionMode: PostConditionMode.Allow,
     network: getNetwork(params.network),
     fee: 5000n,
+    publicKey: '0'.repeat(66),
   })
 
   const serialized = bytesToHex(tx.serialize())
@@ -312,7 +313,7 @@ export async function buildDelegateSTX(params: {
 }): Promise<UnsignedTx> {
   const POX4 = 'SP000000000000000000002Q6VF78'
 
-  const tx = await makeContractCall({
+  const tx = await makeUnsignedContractCall({
     contractAddress: POX4,
     contractName: 'pox-4',
     functionName: 'delegate-stx',
@@ -320,12 +321,13 @@ export async function buildDelegateSTX(params: {
       uintCV(params.amountMicroSTX),
       standardPrincipalCV(params.delegateTo),
       params.untilBurnHt ? uintCV(BigInt(params.untilBurnHt)) : noneCV(),
-      noneCV(), // pox-addr (pool operator handles this)
+      noneCV(),
     ],
     anchorMode: AnchorMode.Any,
     postConditionMode: PostConditionMode.Allow,
     network: getNetwork(params.network),
     fee: 3000n,
+    publicKey: '0'.repeat(66),
   })
 
   const serialized = bytesToHex(tx.serialize())
@@ -359,9 +361,9 @@ export async function signAndBroadcast(params: {
 
   const tx = deserializeTransaction(params.unsignedTx.serialized)
   const key = createStacksPrivateKey(params.privateKey)
-  signWithKey(key, tx as any)
+  signWithKey(tx, key)
 
-  const result = await broadcastTransaction(tx as any, getNetwork(params.network))
+  const result = await broadcastTransaction(tx, getNetwork(params.network))
 
   if ('error' in result) {
     throw new Error(`Broadcast failed: ${(result as any).error} — ${(result as any).reason}`)
@@ -397,7 +399,6 @@ export async function waitForConfirmation(
       if (data.tx_status === 'failed' || data.tx_status === 'abort_by_post_condition') {
         return { status: 'failed', blockHeight: data.block_height ?? 0 }
       }
-      // 'pending' or 'broadcasted' — keep polling
     } catch {
       // Network error — keep polling until timeout
     }

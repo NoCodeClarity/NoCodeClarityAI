@@ -4,6 +4,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
+import { TransactionVersion } from '@stacks/transactions'
 import { StacksSwarm } from './index.js'
 import type { SwarmEvent } from './index.js'
 import { getDB } from './db/client.js'
@@ -17,13 +18,15 @@ async function initWallet() {
   const mnemonic = process.env['WALLET_MNEMONIC']
   if (!mnemonic) throw new Error('WALLET_MNEMONIC is required')
 
-  // Dynamic import to handle ESM/CJS differences
   const { generateWallet, getStxAddress } = await import('@stacks/wallet-sdk')
   const wallet = await generateWallet({ secretKey: mnemonic, password: '' })
   const account = wallet.accounts[0]
   if (!account) throw new Error('No account derived from mnemonic')
   const network = (process.env['STACKS_NETWORK'] ?? 'testnet') as 'mainnet' | 'testnet'
-  const address = getStxAddress({ account, transactionVersion: network === 'mainnet' ? 22 : 26 })
+  const txVersion = network === 'mainnet'
+    ? TransactionVersion.Mainnet
+    : TransactionVersion.Testnet
+  const address = getStxAddress({ account, transactionVersion: txVersion })
   return { address, privateKey: account.stxPrivateKey, network }
 }
 
@@ -82,7 +85,6 @@ app.get('/stream', (c) => {
 
   sseClients.add(send)
 
-  // Heartbeat every 30s to keep connection alive
   const heartbeat = setInterval(() => {
     writer.write(encoder.encode(': heartbeat\n\n')).catch(() => {
       clearInterval(heartbeat)
@@ -121,8 +123,11 @@ app.post('/tasks', authMiddleware(), async (c) => {
   const body = await c.req.json()
   const { goal, strategyId } = body as { goal: string; strategyId: string }
 
-  if (!goal || !strategyId) {
-    return c.json({ error: 'goal and strategyId are required' }, 400)
+  if (!goal || typeof goal !== 'string' || !strategyId) {
+    return c.json({ error: 'goal (string) and strategyId are required' }, 400)
+  }
+  if (goal.length > 500) {
+    return c.json({ error: 'goal exceeds maximum length of 500 characters' }, 400)
   }
 
   const db = getDB()
@@ -140,14 +145,27 @@ app.post('/tasks', authMiddleware(), async (c) => {
     createdAt: strategyRow.createdAt.getTime(),
   }
 
-  const task = await swarm.execute(goal, strategy)
-  return c.json({ task }, 201)
+  try {
+    const task = await swarm.execute(goal, strategy)
+    return c.json({ task }, 201)
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400)
+  }
 })
 
 app.post('/tasks/:id/approve', authMiddleware(), async (c) => {
   try {
     await swarm.humanApprove(c.req.param('id'))
     return c.json({ approved: true })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 400)
+  }
+})
+
+app.post('/tasks/:id/reject', authMiddleware(), async (c) => {
+  try {
+    await swarm.humanReject(c.req.param('id'))
+    return c.json({ rejected: true })
   } catch (e: any) {
     return c.json({ error: e.message }, 400)
   }
@@ -161,9 +179,12 @@ app.get('/strategies', authMiddleware(), async (c) => {
 
 app.post('/strategies', authMiddleware(), async (c) => {
   const body = await c.req.json()
+  if (!body.name || !body.template || !body.riskConfig) {
+    return c.json({ error: 'name, template, and riskConfig are required' }, 400)
+  }
   const [row] = await getDB().insert(strategies).values({
-    name: body.name,
-    template: body.template,
+    name: String(body.name).slice(0, 100),
+    template: String(body.template).slice(0, 50),
     mode: body.mode ?? 'simple',
     riskConfig: body.riskConfig,
     allocations: body.allocations ?? {},

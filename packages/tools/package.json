@@ -10,6 +10,12 @@
   },
   "dependencies": {
     "@stacks/transactions": "^6.13.0",
-    "@stacks/network": "^6.13.0"
+    "@stacks/network": "^6.13.0",
+    "@stacks/common": "^6.13.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/uuid": "^9.0.0"
   }
 }

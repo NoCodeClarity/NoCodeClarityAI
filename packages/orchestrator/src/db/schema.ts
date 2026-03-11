@@ -1,11 +1,32 @@
 // ── Drizzle Schema ───────────────────────────────────────────────────────────
 // TASK-014: Database tables for strategies, tasks, memory, known protocols,
 // and agent registration.
+//
+// NOTE: pgvector support requires the drizzle-orm/pg-core customType helper.
+// The `embedding` column is stored as a text representation of the vector.
+// For production, install `pgvector` extension in Postgres and use raw SQL
+// for vector similarity queries.
 
 import {
   pgTable, text, jsonb, boolean, integer,
-  timestamp, vector, uuid, index
+  timestamp, uuid, index, customType,
 } from 'drizzle-orm/pg-core'
+
+// Custom type for pgvector — stores as text, Postgres handles the vector ops
+const vector = customType<{ data: number[]; dpiverParam: string }>({
+  dataType() {
+    return 'vector(1536)'
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`
+  },
+  fromDriver(value: unknown): number[] {
+    if (typeof value === 'string') {
+      return value.replace(/[\[\]]/g, '').split(',').map(Number)
+    }
+    return value as number[]
+  },
+})
 
 export const strategies = pgTable('strategies', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -40,10 +61,10 @@ export const memory = pgTable('memory', {
   protocol: text('protocol').notNull(),
   outcome: text('outcome').notNull(), // success | failed | rejected
   summary: text('summary').notNull(),
-  embedding: vector('embedding', { dimensions: 1536 }),
+  embedding: vector('embedding'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => ({
-  embeddingIdx: index('memory_embedding_idx').using('hnsw', t.embedding.op('vector_cosine_ops')),
+  protocolIdx: index('memory_protocol_idx').on(t.protocol),
 }))
 
 export const knownProtocols = pgTable('known_protocols', {
