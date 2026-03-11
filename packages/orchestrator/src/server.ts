@@ -10,7 +10,6 @@ import type { SwarmEvent } from './index.js'
 import { getDB } from './db/client.js'
 import { strategies } from './db/schema.js'
 import { eq } from 'drizzle-orm'
-import { registerWithAIBTC, startHeartbeat } from './aibtc.js'
 
 // ── Initialize wallet from mnemonic ──────────────────────────────────────────
 
@@ -218,12 +217,14 @@ async function main() {
 
   // Register with AIBTC network (non-blocking, non-fatal)
   if (process.env['AIBTC_REGISTER'] === 'true') {
-    registerWithAIBTC({
-      walletAddress: address,
-      btcAddress: '',
-      operatorXHandle: process.env['AIBTC_OPERATOR_X_HANDLE'],
-    })
-    startHeartbeat(address)
+    import('./aibtc.js').then(({ registerWithAIBTC, startHeartbeat }) => {
+      registerWithAIBTC({
+        walletAddress: address,
+        btcAddress: '',
+        operatorXHandle: process.env['AIBTC_OPERATOR_X_HANDLE'],
+      })
+      startHeartbeat(address)
+    }).catch(err => console.warn('AIBTC module load failed (non-fatal):', err))
   }
 
   const port = parseInt(process.env['ORCHESTRATOR_PORT'] ?? '3001')

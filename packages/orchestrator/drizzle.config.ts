@@ -1,10 +1,11 @@
-import type { Config } from 'drizzle-kit'
+// drizzle.config.ts — Drizzle Kit migration config
+// Uses defineConfig for proper type inference with the postgresql dialect
 
 export default {
   schema: './src/db/schema.ts',
   out: './drizzle',
-  dialect: 'postgresql',
+  dialect: 'postgresql' as const,
   dbCredentials: {
-    connectionString: process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@localhost:5432/nocodeclarity',
+    url: process.env['DATABASE_URL'] ?? 'postgresql://postgres:postgres@localhost:5432/nocodeclarity',
   },
-} satisfies Config
+}
