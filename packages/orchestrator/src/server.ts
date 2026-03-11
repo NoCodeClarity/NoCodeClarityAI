@@ -241,10 +241,17 @@ app.post('/recurring', authMiddleware(), async (c) => {
   if (!body.goal || !body.strategyId || !body.interval) {
     return c.json({ error: 'goal, strategyId, and interval are required' }, 400)
   }
+  // Sanitize goal
+  const goal = String(body.goal).slice(0, 500).replace(/[\x00-\x1f\x7f-\x9f]/g, '')
+  if (!goal.trim()) return c.json({ error: 'goal cannot be empty' }, 400)
+  // Limit total recurring tasks (DoS prevention)
+  if ((scheduler?.list() ?? []).length >= 20) {
+    return c.json({ error: 'Maximum 20 recurring tasks allowed' }, 400)
+  }
   try {
     const task = scheduler.schedule({
       id: crypto.randomUUID(),
-      goal: body.goal,
+      goal,
       strategyId: body.strategyId,
       interval: body.interval,
     })
@@ -273,14 +280,26 @@ app.post('/triggers', authMiddleware(), async (c) => {
   if (!body.name || !body.condition || !body.goal || !body.strategyId) {
     return c.json({ error: 'name, condition, goal, and strategyId are required' }, 400)
   }
+  // Validate condition type (whitelist)
+  const validTypes = ['peg_health_below', 'peg_health_above', 'stx_balance_above', 'stx_balance_below', 'pox_cycle_ending_in', 'congestion_level']
+  if (!body.condition.type || !validTypes.includes(body.condition.type)) {
+    return c.json({ error: `Invalid condition type. Valid: ${validTypes.join(', ')}` }, 400)
+  }
+  // Sanitize goal
+  const goal = String(body.goal).slice(0, 500).replace(/[\x00-\x1f\x7f-\x9f]/g, '')
+  if (!goal.trim()) return c.json({ error: 'goal cannot be empty' }, 400)
+  // Limit total triggers (DoS prevention)
+  if ((triggerEngine?.list() ?? []).length >= 10) {
+    return c.json({ error: 'Maximum 10 triggers allowed' }, 400)
+  }
   const trigger = triggerEngine.register({
     id: crypto.randomUUID(),
-    name: body.name,
+    name: String(body.name).slice(0, 100),
     condition: body.condition,
-    goal: body.goal,
+    goal,
     strategyId: body.strategyId,
     enabled: true,
-    cooldownMs: body.cooldownMs ?? 30 * 60 * 1000,
+    cooldownMs: Math.max(60_000, body.cooldownMs ?? 30 * 60 * 1000),
   })
   return c.json({ trigger }, 201)
 })
@@ -293,10 +312,15 @@ app.delete('/triggers/:id', authMiddleware(), (c) => {
 // ── Clarity Analysis (Yellow tier) ─────────────────────────────────────────
 
 app.get('/analyze/:contractId', authMiddleware(), async (c) => {
+  const contractId = c.req.param('contractId')
+  // Validate contractId format: SPXXXX.contract-name or STXXXX.contract-name
+  if (!/^(SP|ST)[A-Z0-9]{30,}\.[-a-zA-Z0-9]+$/.test(contractId)) {
+    return c.json({ error: 'Invalid contract ID format. Expected: SP123.contract-name' }, 400)
+  }
   try {
     const { analyzeContract } = await import('@nocodeclarity/tools/read/clarity')
     const network = (process.env['STACKS_NETWORK'] ?? 'testnet') as 'mainnet' | 'testnet'
-    const result = await analyzeContract(c.req.param('contractId'), network)
+    const result = await analyzeContract(contractId, network)
     return c.json(result)
   } catch (e: any) {
     return c.json({ error: e.message }, 400)

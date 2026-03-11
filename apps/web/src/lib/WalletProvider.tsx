@@ -91,7 +91,7 @@ export function WalletProviderComponent({ children }: { children: ReactNode }) {
               if (stxAddr) {
                 addresses.push({
                   address: stxAddr,
-                  publicKey: userData.profile.appPrivateKey ?? '',
+                  publicKey: '', // NOTE: do NOT store appPrivateKey here
                   provider: walletProvider,
                   network,
                 })
