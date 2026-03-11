@@ -64,10 +64,10 @@ You: "Deposit my sBTC for yield"
 | **STX** | Transfer, PoX stacking (1–12 cycles), delegation to pools | ✅ Live |
 | **sBTC** | Transfer, peg health monitoring, finality depth tracking | ✅ Live |
 | **ALEX** | AMM swaps (any token pair) with slippage protection | ✅ Live |
+| **Velar** | DEX swaps, pool state monitoring, TVL tracking | ✅ Live |
+| **Bitflow** | stSTX liquid stacking, token swaps | ✅ Live |
+| **Arkadiko** | Token swaps, vault monitoring, liquidation risk alerts | ✅ Live |
 | **Zest Protocol** | Lending pool deposits for yield | ✅ Live |
-| **Arkadiko** | Vault monitoring, liquidation risk alerts | 📡 Read |
-| **Velar** | Pool state monitoring, TVL tracking | 📡 Read |
-| **Bitflow** | stSTX liquid stacking stats | 📡 Read |
 
 ---
 

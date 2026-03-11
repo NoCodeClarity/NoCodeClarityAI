@@ -209,6 +209,236 @@ export async function buildALEXSwap(params: {
   })
 }
 
+// ── Velar DEX Swap ───────────────────────────────────────────────────────────
+
+export async function buildVelarSwap(params: {
+  senderAddress: string
+  fromToken: string     // e.g. SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.token-wstx
+  toToken: string       // e.g. SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.token-sbtc
+  amountIn: bigint
+  minAmountOut: bigint
+  network: 'mainnet' | 'testnet'
+}): Promise<UnsignedTx> {
+  const VELAR_ROUTER = params.network === 'mainnet'
+    ? 'SP1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1'
+    : 'ST1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1'
+
+  const [fromAddress, fromName] = params.fromToken.split('.')
+  const [toAddress, toName] = params.toToken.split('.')
+
+  const tx = await makeUnsignedContractCall({
+    contractAddress: VELAR_ROUTER,
+    contractName: 'velar-swap-v1',
+    functionName: 'swap',
+    functionArgs: [
+      standardPrincipalCV(params.fromToken),
+      standardPrincipalCV(params.toToken),
+      uintCV(params.amountIn),
+      uintCV(params.minAmountOut),
+    ],
+    anchorMode: AnchorMode.Any,
+    postConditionMode: PostConditionMode.Deny,
+    postConditions: [
+      makeStandardFungiblePostCondition(
+        params.senderAddress,
+        FungibleConditionCode.Equal,
+        params.amountIn,
+        createAssetInfo(fromAddress!, fromName!, fromName!)
+      ),
+      makeStandardFungiblePostCondition(
+        params.senderAddress,
+        FungibleConditionCode.GreaterEqual,
+        params.minAmountOut,
+        createAssetInfo(toAddress!, toName!, toName!)
+      ),
+    ],
+    network: getNetwork(params.network),
+    fee: 3000n,
+    publicKey: '0'.repeat(66),
+  })
+
+  const serialized = bytesToHex(tx.serialize())
+
+  return makeUnsignedTx(serialized, {
+    humanDescription: `Swap ${Number(params.amountIn) / 1_000_000} ${fromName} for at least ${Number(params.minAmountOut) / 1_000_000} ${toName} on Velar`,
+    protocol: 'velar',
+    actionType: 'swap',
+    estimatedFeeSTX: '0.003',
+    postConditions: [
+      { type: 'FT_EQUAL', description: `Spend exactly ${Number(params.amountIn) / 1_000_000} ${fromName}` },
+      { type: 'FT_GTE', description: `Receive at least ${Number(params.minAmountOut) / 1_000_000} ${toName}` },
+    ],
+  })
+}
+
+// ── Bitflow stSTX Liquid Stacking ────────────────────────────────────────────
+
+export async function buildBitflowStake(params: {
+  senderAddress: string
+  amountMicroSTX: bigint
+  network: 'mainnet' | 'testnet'
+}): Promise<UnsignedTx> {
+  const BITFLOW_STAKING = params.network === 'mainnet'
+    ? 'SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+    : 'ST4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+
+  const tx = await makeUnsignedContractCall({
+    contractAddress: BITFLOW_STAKING,
+    contractName: 'stacking-pool-v1',
+    functionName: 'stake',
+    functionArgs: [
+      uintCV(params.amountMicroSTX),
+    ],
+    anchorMode: AnchorMode.Any,
+    postConditionMode: PostConditionMode.Deny,
+    postConditions: [
+      makeStandardSTXPostCondition(
+        params.senderAddress,
+        FungibleConditionCode.Equal,
+        params.amountMicroSTX
+      ),
+    ],
+    network: getNetwork(params.network),
+    fee: 3000n,
+    publicKey: '0'.repeat(66),
+  })
+
+  const serialized = bytesToHex(tx.serialize())
+  const stxAmount = Number(params.amountMicroSTX) / 1_000_000
+
+  return makeUnsignedTx(serialized, {
+    humanDescription: `Stake ${stxAmount} STX for stSTX on Bitflow (liquid stacking)`,
+    protocol: 'bitflow',
+    actionType: 'stake',
+    estimatedFeeSTX: '0.003',
+    postConditions: [
+      { type: 'STX_EQUAL', description: `Deposit exactly ${stxAmount} STX into Bitflow stacking pool` },
+    ],
+  })
+}
+
+export async function buildBitflowSwap(params: {
+  senderAddress: string
+  fromToken: string
+  toToken: string
+  amountIn: bigint
+  minAmountOut: bigint
+  network: 'mainnet' | 'testnet'
+}): Promise<UnsignedTx> {
+  const BITFLOW_ROUTER = params.network === 'mainnet'
+    ? 'SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+    : 'ST4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+
+  const [fromAddress, fromName] = params.fromToken.split('.')
+  const [toAddress, toName] = params.toToken.split('.')
+
+  const tx = await makeUnsignedContractCall({
+    contractAddress: BITFLOW_ROUTER,
+    contractName: 'bitflow-pool-v1',
+    functionName: 'swap',
+    functionArgs: [
+      standardPrincipalCV(params.fromToken),
+      standardPrincipalCV(params.toToken),
+      uintCV(params.amountIn),
+      uintCV(params.minAmountOut),
+    ],
+    anchorMode: AnchorMode.Any,
+    postConditionMode: PostConditionMode.Deny,
+    postConditions: [
+      makeStandardFungiblePostCondition(
+        params.senderAddress,
+        FungibleConditionCode.Equal,
+        params.amountIn,
+        createAssetInfo(fromAddress!, fromName!, fromName!)
+      ),
+      makeStandardFungiblePostCondition(
+        params.senderAddress,
+        FungibleConditionCode.GreaterEqual,
+        params.minAmountOut,
+        createAssetInfo(toAddress!, toName!, toName!)
+      ),
+    ],
+    network: getNetwork(params.network),
+    fee: 3000n,
+    publicKey: '0'.repeat(66),
+  })
+
+  const serialized = bytesToHex(tx.serialize())
+
+  return makeUnsignedTx(serialized, {
+    humanDescription: `Swap ${Number(params.amountIn) / 1_000_000} ${fromName} for at least ${Number(params.minAmountOut) / 1_000_000} ${toName} on Bitflow`,
+    protocol: 'bitflow',
+    actionType: 'swap',
+    estimatedFeeSTX: '0.003',
+    postConditions: [
+      { type: 'FT_EQUAL', description: `Spend exactly ${Number(params.amountIn) / 1_000_000} ${fromName}` },
+      { type: 'FT_GTE', description: `Receive at least ${Number(params.minAmountOut) / 1_000_000} ${toName}` },
+    ],
+  })
+}
+
+// ── Arkadiko Swap ────────────────────────────────────────────────────────────
+
+export async function buildArkadikoSwap(params: {
+  senderAddress: string
+  fromToken: string
+  toToken: string
+  amountIn: bigint
+  minAmountOut: bigint
+  network: 'mainnet' | 'testnet'
+}): Promise<UnsignedTx> {
+  const ARKADIKO_ROUTER = params.network === 'mainnet'
+    ? 'SP2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89'
+    : 'ST2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89'
+
+  const [fromAddress, fromName] = params.fromToken.split('.')
+  const [toAddress, toName] = params.toToken.split('.')
+
+  const tx = await makeUnsignedContractCall({
+    contractAddress: ARKADIKO_ROUTER,
+    contractName: 'arkadiko-swap-v2-1',
+    functionName: 'swap-x-for-y',
+    functionArgs: [
+      standardPrincipalCV(params.fromToken),
+      standardPrincipalCV(params.toToken),
+      uintCV(params.amountIn),
+      uintCV(params.minAmountOut),
+    ],
+    anchorMode: AnchorMode.Any,
+    postConditionMode: PostConditionMode.Deny,
+    postConditions: [
+      makeStandardFungiblePostCondition(
+        params.senderAddress,
+        FungibleConditionCode.Equal,
+        params.amountIn,
+        createAssetInfo(fromAddress!, fromName!, fromName!)
+      ),
+      makeStandardFungiblePostCondition(
+        params.senderAddress,
+        FungibleConditionCode.GreaterEqual,
+        params.minAmountOut,
+        createAssetInfo(toAddress!, toName!, toName!)
+      ),
+    ],
+    network: getNetwork(params.network),
+    fee: 3000n,
+    publicKey: '0'.repeat(66),
+  })
+
+  const serialized = bytesToHex(tx.serialize())
+
+  return makeUnsignedTx(serialized, {
+    humanDescription: `Swap ${Number(params.amountIn) / 1_000_000} ${fromName} for at least ${Number(params.minAmountOut) / 1_000_000} ${toName} on Arkadiko`,
+    protocol: 'arkadiko',
+    actionType: 'swap',
+    estimatedFeeSTX: '0.003',
+    postConditions: [
+      { type: 'FT_EQUAL', description: `Spend exactly ${Number(params.amountIn) / 1_000_000} ${fromName}` },
+      { type: 'FT_GTE', description: `Receive at least ${Number(params.minAmountOut) / 1_000_000} ${toName}` },
+    ],
+  })
+}
+
 // ── TASK-011: buildZestDeposit + buildStackSTX ───────────────────────────────
 
 export async function buildZestDeposit(params: {
