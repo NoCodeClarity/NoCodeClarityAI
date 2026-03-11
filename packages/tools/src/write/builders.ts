@@ -77,13 +77,13 @@ export async function buildSTXTransfer(params: {
 
   // Set post-conditions on the transaction object (not in the options)
   tx.postConditionMode = PostConditionMode.Deny
-  tx.postConditions.push(
+  ;(tx.postConditions as any).values = [
     makeStandardSTXPostCondition(
       params.senderAddress,
       FungibleConditionCode.Equal,
       params.amountMicroSTX
     )
-  )
+  ]
 
   const serialized = bytesToHex(tx.serialize())
 
@@ -593,7 +593,7 @@ export async function signAndBroadcast(params: {
 
   const tx = deserializeTransaction(params.unsignedTx.serialized)
   const key = createStacksPrivateKey(params.privateKey)
-  signWithKey(key, tx)
+  ;(signWithKey as any)(tx, key)
 
   const result = await broadcastTransaction(tx, getNetwork(params.network))
 

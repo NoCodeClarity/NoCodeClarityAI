@@ -45,7 +45,7 @@ export function WalletSelector() {
             {accounts.length > 1 && (
               <div className="p-2 border-b border-zinc-800">
                 <p className="text-xs text-zinc-500 px-2 mb-1">Accounts</p>
-                {accounts.map(acc => (
+                {accounts.map((acc: { address: string }) => (
                   <button
                     key={acc.address}
                     onClick={() => { switchAccount(acc.address); setShowDropdown(false) }}

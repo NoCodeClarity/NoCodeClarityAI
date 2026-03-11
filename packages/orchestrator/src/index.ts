@@ -133,7 +133,7 @@ export class StacksSwarm extends EventEmitter {
     const rows = await getDB().select().from(tasks)
       .orderBy(desc(tasks.createdAt))
       .limit(limit)
-    return rows.map(r => this.rowToTask(r))
+    return rows.map((r: any) => this.rowToTask(r))
   }
 
   async pause(): Promise<void> {

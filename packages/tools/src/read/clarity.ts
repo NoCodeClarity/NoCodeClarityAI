@@ -94,14 +94,21 @@ export async function analyzeContract(
 }> {
   const info = await getContractSource(contractId, network)
 
-  // Use LLM to analyze the contract
-  const Anthropic = (await import('@anthropic-ai/sdk')).default
-  const anthropic = new Anthropic()
+  // Use Anthropic API directly (avoids @anthropic-ai/sdk type dependency)
+  const apiKey = process.env['ANTHROPIC_API_KEY']
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY required for contract analysis')
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 800,
-    system: `You are a Clarity smart contract security auditor. Analyze the contract source code and return a JSON risk assessment.
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      system: `You are a Clarity smart contract security auditor. Analyze the contract source code and return a JSON risk assessment.
 
 Return ONLY valid JSON in this exact format:
 {
@@ -116,13 +123,17 @@ Key things to check:
 - Does it use tx-sender safely?
 - Are there missing post-conditions?
 - Is it upgradeable (contract-call to dynamic addresses)?`,
-    messages: [{
-      role: 'user',
-      content: `Contract: ${contractId}\n\nSource:\n${info.source.slice(0, 8000)}`,
-    }],
+      messages: [{
+        role: 'user',
+        content: `Contract: ${contractId}\n\nSource:\n${info.source.slice(0, 8000)}`,
+      }],
+    }),
   })
 
-  const text = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+  if (!response.ok) throw new Error(`Anthropic API error: ${response.status}`)
+  const respData: any = await response.json()
+
+  const text = respData.content?.[0]?.type === 'text' ? respData.content[0].text : '{}'
 
   let analysis: any
   try {

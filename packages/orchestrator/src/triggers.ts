@@ -108,8 +108,7 @@ export class ChainTriggerEngine {
 
       case 'pox_cycle_ending_in':
         // Check if PoX cycle ends within N blocks
-        if (!snapshot.pox) return false
-        const blocksRemaining = snapshot.pox.currentCycleEnd - snapshot.network.stacksBlockHeight
+        const blocksRemaining = snapshot.network.blocksUntilNextCycle
         return blocksRemaining > 0 && blocksRemaining <= condition.blocks
 
       case 'congestion_level':
