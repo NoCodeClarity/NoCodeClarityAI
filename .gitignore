@@ -6,3 +6,5 @@ dist/
 .turbo/
 *.tsbuildinfo
 drizzle/
+BUILD.md
+SPEC.md
