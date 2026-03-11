@@ -12,6 +12,7 @@ import { strategies } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 import { logger, requestLogger } from './logger.js'
 import { createChainhookHandler } from './chainhook.js'
+import { TaskRecoveryManager } from './recovery.js'
 
 // ── Initialize wallet from mnemonic ──────────────────────────────────────────
 
@@ -65,10 +66,32 @@ function authMiddleware() {
 // ── Swarm instance (initialized at startup) ───────────────────────────────────
 
 let swarm: StacksSwarm
+let recoveryManager: TaskRecoveryManager
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.get('/health', (c) => c.json({ status: 'ok', ts: Date.now() }))
+
+// ── Recovery endpoints ──────────────────────────────────────────────────────
+
+app.get('/recovery/stats', (c) => {
+  return c.json(recoveryManager.stats())
+})
+
+app.get('/recovery/dead-letter', (c) => {
+  return c.json(recoveryManager.getDeadLetterQueue())
+})
+
+app.post('/recovery/retry/:id', authMiddleware(), async (c) => {
+  const id = c.req.param('id')
+  const ok = await recoveryManager.retryDeadLetter(id)
+  return ok ? c.json({ retried: true }) : c.json({ error: 'Task not found in dead letter queue' }, 404)
+})
+
+app.post('/recovery/purge', authMiddleware(), async (c) => {
+  const purged = recoveryManager.purgeDeadLetters()
+  return c.json({ purged })
+})
 
 // Kill switch — no auth, must be instant
 app.post('/pause', async (c) => {
@@ -367,6 +390,20 @@ async function main() {
   swarm.on('task:complete', broadcastEvent)
   swarm.on('task:rejected', broadcastEvent)
   swarm.on('task:failed', broadcastEvent)
+
+  // Initialize error recovery
+  recoveryManager = new TaskRecoveryManager(async (goal, strategyId) => {
+    const [strategyRow] = await db.select().from(strategies).where(eq(strategies.id, strategyId))
+    if (!strategyRow) return
+    const strategy = {
+      id: strategyRow.id, name: strategyRow.name,
+      template: strategyRow.template as any, mode: strategyRow.mode as any,
+      riskConfig: strategyRow.riskConfig as any, allocations: strategyRow.allocations as any,
+      active: strategyRow.active, createdAt: strategyRow.createdAt.getTime?.() ?? Date.now(),
+    }
+    await swarm.execute(goal, strategy)
+  })
+  await recoveryManager.recoverStaleTasks()
 
   // Register with AIBTC network (non-blocking, non-fatal)
   if (process.env['AIBTC_REGISTER'] === 'true') {

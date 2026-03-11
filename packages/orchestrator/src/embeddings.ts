@@ -1,20 +1,78 @@
 // ── Embedding Engine ─────────────────────────────────────────────────────────
-// Generates embeddings for agent memory using Anthropic's API (via text digest)
-// and stores them in pgvector for semantic search of past outcomes.
+// True semantic embeddings for agent memory.
+// Uses OpenAI text-embedding-3-small (1536 dims) when OPENAI_API_KEY is set.
+// Falls back to Anthropic summary + deterministic hash vectors otherwise.
+// Stored in pgvector for cosine similarity search.
 
-import Anthropic from '@anthropic-ai/sdk'
 import { createHash } from 'crypto'
 
-const anthropic = new Anthropic()
+// ── Configuration ────────────────────────────────────────────────────────────
+
+const EMBEDDING_MODEL = 'text-embedding-3-small'
+const EMBEDDING_DIMS = 1536
+
+// ── Core Types ───────────────────────────────────────────────────────────────
+
+export interface MemoryEntry {
+  id: string
+  taskId: string
+  protocol: string
+  goal: string
+  outcome: 'success' | 'failed' | 'rejected'
+  summary: string
+  embedding: number[]
+  createdAt: number
+}
+
+// ── Embedding Generation ─────────────────────────────────────────────────────
 
 /**
- * Generate a text embedding by creating a content hash + LLM summary.
- * We use a two-step approach:
- * 1. LLM compresses the outcome into a normalized summary
- * 2. Hash-based pseudo-embedding for similarity (until native embeddings available)
- *
- * NOTE: For production, replace with a proper embedding model.
- * This approach uses deterministic hashing for consistent similarity matching.
+ * Generate a real semantic embedding using OpenAI's API.
+ * Falls back to deterministic hash vectors if OPENAI_API_KEY is not set.
+ */
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env['OPENAI_API_KEY']
+
+  if (apiKey) {
+    return generateOpenAIEmbedding(text, apiKey)
+  }
+
+  // Fallback: deterministic hash-based pseudo-embedding
+  return textToHashVector(text, EMBEDDING_DIMS)
+}
+
+/**
+ * Call OpenAI's embedding API directly (no SDK dependency).
+ */
+async function generateOpenAIEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const response = await fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      input: text.slice(0, 8000), // max input safety
+      dimensions: EMBEDDING_DIMS,
+    }),
+  })
+
+  if (!response.ok) {
+    const err: any = await response.json().catch(() => ({}))
+    console.warn(`OpenAI embedding failed (${response.status}): ${err?.error?.message ?? 'unknown'}. Falling back to hash.`)
+    return textToHashVector(text, EMBEDDING_DIMS)
+  }
+
+  const data: any = await response.json()
+  return data?.data?.[0]?.embedding ?? textToHashVector(text, EMBEDDING_DIMS)
+}
+
+// ── Memory Generation ────────────────────────────────────────────────────────
+
+/**
+ * Generate a complete memory entry for a completed task.
+ * Creates both a summary (via Anthropic) and an embedding vector.
  */
 export async function generateMemoryEmbedding(params: {
   protocol: string
@@ -22,52 +80,58 @@ export async function generateMemoryEmbedding(params: {
   outcome: 'success' | 'failed' | 'rejected'
   snapshotSummary: string
 }): Promise<{ summary: string; embedding: number[] }> {
-  // Step 1: Generate a normalized summary using Claude
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    system: `Summarize this DeFi task outcome in 1-2 sentences. Focus on: what was attempted, the result, and any notable conditions. Be factual, not conversational.`,
-    messages: [{
-      role: 'user',
-      content: `Protocol: ${params.protocol}\nGoal: ${params.goal}\nOutcome: ${params.outcome}\nConditions: ${params.snapshotSummary}`,
-    }],
-  })
+  // Step 1: Generate a normalized summary using Anthropic API
+  const summary = await generateSummary(params)
 
-  const summary = response.content[0]?.type === 'text'
-    ? response.content[0].text.trim()
-    : `${params.outcome}: ${params.goal} on ${params.protocol}`
-
-  // Step 2: Generate a deterministic pseudo-embedding from the summary
-  // This creates a consistent 1536-dim vector from text for similarity matching
-  const embedding = textToVector(summary, 1536)
+  // Step 2: Generate semantic embedding from the summary
+  const embeddingText = `${params.protocol} | ${params.outcome} | ${summary}`
+  const embedding = await generateEmbedding(embeddingText)
 
   return { summary, embedding }
 }
 
 /**
- * Convert text to a deterministic pseudo-embedding vector.
- * Uses repeated hashing to fill the dimensions.
+ * Generate a task summary using Anthropic API (direct fetch).
  */
-function textToVector(text: string, dimensions: number): number[] {
-  const vector: number[] = []
-  let seed = text
-
-  while (vector.length < dimensions) {
-    const hash = createHash('sha256').update(seed).digest()
-    // Each SHA-256 hash gives us 32 bytes = 8 floats (4 bytes each)
-    for (let i = 0; i < hash.length && vector.length < dimensions; i += 4) {
-      // Convert 4 bytes to a float between -1 and 1
-      const uint = hash.readUInt32BE(i)
-      const normalized = (uint / 0xFFFFFFFF) * 2 - 1
-      vector.push(normalized)
-    }
-    seed = hash.toString('hex') + seed.slice(0, 32) // chain hashes
+async function generateSummary(params: {
+  protocol: string
+  goal: string
+  outcome: string
+  snapshotSummary: string
+}): Promise<string> {
+  const apiKey = process.env['ANTHROPIC_API_KEY']
+  if (!apiKey) {
+    return `${params.outcome}: ${params.goal} on ${params.protocol}`
   }
 
-  // Normalize to unit vector
-  const magnitude = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0))
-  return magnitude > 0 ? vector.map(v => v / magnitude) : vector
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        system: `Summarize this DeFi task outcome in 1-2 sentences. Focus on: what was attempted, the result, and any notable conditions. Be factual.`,
+        messages: [{
+          role: 'user',
+          content: `Protocol: ${params.protocol}\nGoal: ${params.goal}\nOutcome: ${params.outcome}\nConditions: ${params.snapshotSummary}`,
+        }],
+      }),
+    })
+
+    if (!response.ok) throw new Error(`Anthropic ${response.status}`)
+    const data: any = await response.json()
+    return data?.content?.[0]?.text?.trim() ?? `${params.outcome}: ${params.goal} on ${params.protocol}`
+  } catch {
+    return `${params.outcome}: ${params.goal} on ${params.protocol}`
+  }
 }
+
+// ── Similarity Search ────────────────────────────────────────────────────────
 
 /**
  * Compute cosine similarity between two vectors.
@@ -87,21 +151,66 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 /**
- * Search memory for similar past outcomes.
- * Returns top-K results sorted by similarity.
+ * Search in-memory for similar past outcomes.
+ * For pgvector users, use SQL: SELECT *, embedding <=> $1 ORDER BY embedding <=> $1 LIMIT $2
  */
 export function searchMemory(
   query: number[],
-  memories: Array<{ embedding: number[]; summary: string; protocol: string; outcome: string }>,
+  memories: MemoryEntry[],
   topK = 5,
-): Array<{ similarity: number; summary: string; protocol: string; outcome: string }> {
+): Array<{ similarity: number; entry: MemoryEntry }> {
   return memories
     .map(m => ({
       similarity: cosineSimilarity(query, m.embedding),
-      summary: m.summary,
-      protocol: m.protocol,
-      outcome: m.outcome,
+      entry: m,
     }))
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, topK)
+}
+
+/**
+ * Search for similar memories and return context for the analyst agent.
+ * This gives the agent "institutional memory" of past task outcomes.
+ */
+export async function getRelevantMemoryContext(
+  goal: string,
+  memories: MemoryEntry[],
+  topK = 3,
+): Promise<string> {
+  if (memories.length === 0) return ''
+
+  const queryEmbedding = await generateEmbedding(goal)
+  const results = searchMemory(queryEmbedding, memories, topK)
+
+  if (results.length === 0 || results[0].similarity < 0.3) return ''
+
+  const lines = results
+    .filter(r => r.similarity >= 0.3)
+    .map(r => `- [${r.entry.outcome}] ${r.entry.summary} (similarity: ${(r.similarity * 100).toFixed(0)}%)`)
+
+  return `\n## Relevant Past Outcomes\n${lines.join('\n')}\n`
+}
+
+// ── Hash Fallback ────────────────────────────────────────────────────────────
+
+/**
+ * Convert text to a deterministic pseudo-embedding vector.
+ * Used when OPENAI_API_KEY is not available.
+ */
+function textToHashVector(text: string, dimensions: number): number[] {
+  const vector: number[] = []
+  let seed = text
+
+  while (vector.length < dimensions) {
+    const hash = createHash('sha256').update(seed).digest()
+    for (let i = 0; i < hash.length && vector.length < dimensions; i += 4) {
+      const uint = hash.readUInt32BE(i)
+      vector.push((uint / 0xFFFFFFFF) * 2 - 1)
+    }
+    seed = hash.toString('hex') + seed.slice(0, 32)
+  }
+
+  // Normalize to unit vector
+  const magnitude = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0))
+  return magnitude > 0 ? vector.map(v => v / magnitude) : vector
 }

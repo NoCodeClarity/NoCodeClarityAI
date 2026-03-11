@@ -233,8 +233,8 @@ export async function buildVelarSwap(params: {
 
   const tx = await makeUnsignedContractCall({
     contractAddress: VELAR_ROUTER,
-    contractName: 'velar-swap-v1',
-    functionName: 'swap',
+    contractName: 'univ2-router',
+    functionName: 'swap-exact-tokens-for-tokens',
     functionArgs: [
       contractPrincipalCV(fromAddress!, fromName!),
       contractPrincipalCV(toAddress!, toName!),
@@ -284,12 +284,12 @@ export async function buildBitflowStake(params: {
   network: 'mainnet' | 'testnet'
 }): Promise<UnsignedTx> {
   const BITFLOW_STAKING = params.network === 'mainnet'
-    ? 'SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+    ? 'SPQC38PW542EQJ5M11CR25P7BS1CA6QT4TBXGB3M'
     : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const tx = await makeUnsignedContractCall({
     contractAddress: BITFLOW_STAKING,
-    contractName: 'stacking-pool-v1',
+    contractName: 'stableswap-stx-ststx-v-1-2',
     functionName: 'stake',
     functionArgs: [
       uintCV(params.amountMicroSTX),
@@ -331,7 +331,7 @@ export async function buildBitflowSwap(params: {
   network: 'mainnet' | 'testnet'
 }): Promise<UnsignedTx> {
   const BITFLOW_ROUTER = params.network === 'mainnet'
-    ? 'SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+    ? 'SPQC38PW542EQJ5M11CR25P7BS1CA6QT4TBXGB3M'
     : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [fromAddress, fromName] = params.fromToken.split('.')
@@ -339,7 +339,7 @@ export async function buildBitflowSwap(params: {
 
   const tx = await makeUnsignedContractCall({
     contractAddress: BITFLOW_ROUTER,
-    contractName: 'bitflow-pool-v1',
+    contractName: 'stableswap-stx-ststx-v-1-2',
     functionName: 'swap',
     functionArgs: [
       contractPrincipalCV(fromAddress!, fromName!),
@@ -393,7 +393,7 @@ export async function buildArkadikoSwap(params: {
   network: 'mainnet' | 'testnet'
 }): Promise<UnsignedTx> {
   const ARKADIKO_ROUTER = params.network === 'mainnet'
-    ? 'SP2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89'
+    ? 'SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR'
     : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [fromAddress, fromName] = params.fromToken.split('.')
