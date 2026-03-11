@@ -69,19 +69,21 @@ export async function buildSTXTransfer(params: {
     recipient: params.recipient,
     amount: params.amountMicroSTX,
     anchorMode: AnchorMode.Any,
-    postConditionMode: PostConditionMode.Deny,
-    postConditions: [
-      makeStandardSTXPostCondition(
-        params.senderAddress,
-        FungibleConditionCode.Equal,
-        params.amountMicroSTX
-      )
-    ],
     memo: params.memo ?? '',
     network: getNetwork(params.network),
     fee: 2000n,
     publicKey: '0'.repeat(66), // placeholder — real public key injected at sign time
   })
+
+  // Set post-conditions on the transaction object (not in the options)
+  tx.postConditionMode = PostConditionMode.Deny
+  tx.postConditions.push(
+    makeStandardSTXPostCondition(
+      params.senderAddress,
+      FungibleConditionCode.Equal,
+      params.amountMicroSTX
+    )
+  )
 
   const serialized = bytesToHex(tx.serialize())
 
@@ -591,7 +593,7 @@ export async function signAndBroadcast(params: {
 
   const tx = deserializeTransaction(params.unsignedTx.serialized)
   const key = createStacksPrivateKey(params.privateKey)
-  signWithKey(tx, key)
+  signWithKey(key, tx)
 
   const result = await broadcastTransaction(tx, getNetwork(params.network))
 

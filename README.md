@@ -8,7 +8,9 @@
 
 > **Your AI manages Bitcoin yield on Stacks — so you don't have to.**
 
-NoCodeClarity AI is a non-custodial **AI agent swarm** that autonomously manages sBTC yield, PoX stacking, and DeFi operations on the [Stacks](https://stacks.co) blockchain. Tell it what you want in plain English. It handles the rest — risk-gated, fully auditable, with a kill switch always one click away.
+NoCodeClarity AI is the **most comprehensive AI agent platform for Stacks**. It autonomously manages sBTC yield, PoX stacking, DEX swaps across 4 protocols, lending, liquid stacking, and contract security analysis — all non-custodial, risk-gated, with a kill switch always one click away.
+
+Tell it what you want in plain English. Three AI agents handle the rest.
 
 ---
 
@@ -16,58 +18,97 @@ NoCodeClarity AI is a non-custodial **AI agent swarm** that autonomously manages
 
 | Problem | Solution |
 |---------|----------|
-| DeFi on Stacks is complex — PoX cycles, sBTC peg monitoring, protocol risks | AI agents handle the complexity for you |
+| DeFi on Stacks is complex — 7 protocols, PoX cycles, sBTC peg monitoring | AI agents handle the complexity for you |
 | One bad transaction can drain your wallet | **Risk Gate** blocks anything above your threshold |
-| You have to watch the market 24/7 | Agents run continuously, react to chain state in real-time |
-| Tools exist for devs, not for everyone else | **Simple Onboarding** — connect wallet, pick a strategy, go |
+| You have to watch the market 24/7 | **Chain triggers** react to sBTC peg drops, balances, PoX cycles |
+| No way to automate recurring DeFi tasks | **Scheduler** runs goals on intervals (15m to 30 days) |
+| Can't verify if a contract is safe before depositing | **Clarity Analyzer** reads contract source and audits it with LLM |
+| Tools exist for devs, not for everyone else | **Solo Mode** — no Docker needed. Clone, install, run |
 
 ### Who Is This For?
 
-- 🧑‍💻 **Power users** — Full API, SSE streams, custom strategies, deploy your own
-- 🎨 **No-code users** — Connect Leather wallet → pick a risk template → done
+- 🧑‍💻 **Power users** — Full API, SSE streams, chain triggers, custom strategies, recurring tasks
+- 🎨 **No-code users** — Connect wallet (Leather or Xverse) → pick a risk template → done
 - 🤖 **AI agent builders** — Drop-in [OpenClaw skill](https://github.com/Jubilee-Protocol/Openclaw-Skill-Jubilee) for any agent framework
 
 ---
 
-## How It Works
+## What It Does for Stacks
 
-Every task runs through a **three-agent pipeline**:
+### 12 Transaction Builders
 
-```
-You: "Deposit my sBTC for yield"
-        │
-        ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Analyst    │ →  │  Risk Gate   │ →  │   Executor   │
-│              │    │              │    │              │
-│ Chain snap-  │    │ Score risk   │    │ Sign + broad-│
-│ shot: wallet │    │ against YOUR │    │ cast only if │
-│ balance, peg │    │ config. Gate │    │ gate says    │
-│ health, net  │    │ decision:    │    │ PROCEED or   │
-│ congestion   │    │              │    │ you approve  │
-└──────────────┘    │ ✅ PROCEED   │    └──────────────┘
-                    │ 🟡 NEEDS_    │
-                    │    HUMAN     │
-                    │ ⏸️ HOLD      │
-                    │ ❌ REJECT    │
-                    └──────────────┘
-```
+Every builder produces **unsigned transactions** with **Stacks-enforced post-conditions**. If the on-chain result doesn't match what was approved, the transaction reverts — enforced by the protocol.
 
-**Every transaction has post-conditions.** If the on-chain result doesn't match what was approved, the transaction reverts. This is enforced by the Stacks protocol itself — not just our code.
+| Builder | Protocol | Action | Post-Conditions |
+|---------|----------|--------|-----------------|
+| `buildSTXTransfer` | Stacks | Send STX | Exact spend |
+| `buildSBTCTransfer` | sBTC | Send sBTC | Exact FT transfer |
+| `buildALEXSwap` | ALEX | AMM swap (any pair) | Exact spend + min receive |
+| `buildVelarSwap` | Velar | DEX swap | Exact spend + min receive |
+| `buildBitflowSwap` | Bitflow | DEX swap | Exact spend + min receive |
+| `buildBitflowStake` | Bitflow | STX → stSTX liquid stacking | Exact STX deposit |
+| `buildArkadikoSwap` | Arkadiko | swap-x-for-y | Exact spend + min receive |
+| `buildZestDeposit` | Zest | Lending pool deposit | Exact FT deposit |
+| `buildStackSTX` | PoX-4 | Stack STX (1–12 cycles) | PoX lock |
+| `buildDelegateSTX` | PoX-4 | Delegate to stacking pool | PoX delegation |
+| `signAndBroadcast` | Core | Sign + broadcast to chain | Hash check vs. gate |
+| `waitForConfirmation` | Core | Poll for tx confirmation | — |
+
+### 10+ Read Tools
+
+| Tool | Data Source | What It Returns |
+|------|-----------|----------------|
+| `getAccountBalances` | Hiro API | STX, sBTC, all SIP-010 token balances |
+| `getNetworkInfo` | Hiro API | Block height, congestion, tip hash |
+| `getsBTCPegHealth` | Hiro API | Peg ratio, finality depth, health score |
+| `getPoxInfo` | Hiro API | Current cycle, reward phase, stacking minimum |
+| `getRecentTxHistory` | Hiro API | Last N transactions for a wallet |
+| `getProtocolTVL` | Hiro API | TVL for ALEX, Arkadiko, Velar, Bitflow, Zest |
+| `captureChainSnapshot` | All above | Full snapshot: wallet + network + peg + pools |
+| `getContractSource` | Hiro API | Clarity source code + ABI for any contract |
+| `analyzeContract` | Hiro + Claude | LLM security audit of Clarity contracts |
+| `getSignerHealth` | Hiro API | Nakamoto signer count, PoX cycle timing |
+
+### 3 AI Agents
+
+| Agent | Role | How It Works |
+|-------|------|-------------|
+| **Analyst** | Chain analysis | Takes a `ChainSnapshot` → uses Claude to identify risks, opportunities, and context |
+| **Risk Gate** | Risk scoring | Rule-based scoring against your `RiskConfig` → returns `PROCEED`, `NEEDS_HUMAN`, `HOLD`, or `REJECT` |
+| **Executor** | Sign + broadcast | Verifies transaction hash matches gate approval → signs → broadcasts → confirms |
+
+### 6 Chain Trigger Conditions
+
+| Condition | Example |
+|-----------|---------|
+| `peg_health_below` | "If sBTC peg drops below 85, swap to STX" |
+| `peg_health_above` | "If peg recovers above 95, buy sBTC" |
+| `stx_balance_above` | "If balance exceeds 10,000 STX, stake it" |
+| `stx_balance_below` | "If balance drops below 100 STX, alert me" |
+| `pox_cycle_ending_in` | "If PoX cycle ends in 200 blocks, re-delegate" |
+| `congestion_level` | "If congestion is low, execute batch swaps" |
+
+### Recurring Task Intervals
+
+`15m` · `1h` · `6h` · `12h` · `24h` · `7d` · `14d` · `30d`
+
+Example: _"compound my Zest yield every 24 hours"_
 
 ---
 
 ## Supported Protocols
 
-| Protocol | What You Can Do | Status |
-|----------|----------------|--------|
-| **STX** | Transfer, PoX stacking (1–12 cycles), delegation to pools | ✅ Live |
-| **sBTC** | Transfer, peg health monitoring, finality depth tracking | ✅ Live |
-| **ALEX** | AMM swaps (any token pair) with slippage protection | ✅ Live |
-| **Velar** | DEX swaps, pool state monitoring, TVL tracking | ✅ Live |
-| **Bitflow** | stSTX liquid stacking, token swaps | ✅ Live |
-| **Arkadiko** | Token swaps, vault monitoring, liquidation risk alerts | ✅ Live |
-| **Zest Protocol** | Lending pool deposits for yield | ✅ Live |
+| Protocol | Read | Write | Actions |
+|----------|------|-------|---------|
+| **STX** | ✅ | ✅ | Transfer, PoX stacking (1–12 cycles), delegation |
+| **sBTC** | ✅ | ✅ | Transfer, peg health monitoring, finality depth |
+| **ALEX** | ✅ | ✅ | AMM swaps (any token pair), slippage protection |
+| **Velar** | ✅ | ✅ | DEX swaps, pool state, TVL tracking |
+| **Bitflow** | ✅ | ✅ | stSTX liquid stacking, DEX swaps |
+| **Arkadiko** | ✅ | ✅ | Token swaps, vault monitoring, liquidation alerts |
+| **Zest** | ✅ | ✅ | Lending pool deposits for yield |
+
+**Total: 7 protocols, 12 builders, 10+ read tools, 3 agents, 6 trigger types, 8 intervals**
 
 ---
 
@@ -75,33 +116,10 @@ You: "Deposit my sBTC for yield"
 
 ### Prerequisites
 - [Bun](https://bun.sh) (or Node.js 18+)
-- [Docker](https://docker.com) (for PostgreSQL)
 - [Anthropic API key](https://console.anthropic.com)
 - A Stacks wallet mnemonic (12-word seed phrase)
 
-### Setup (5 minutes)
-
-```bash
-# Clone
-git clone https://github.com/NoCodeClarity/NoCodeClarityAI.git
-cd NoCodeClarityAI && bun install
-
-# Configure
-cp .env.example .env
-# Fill in: ANTHROPIC_API_KEY, WALLET_MNEMONIC, DATABASE_URL
-
-# Database
-docker compose up db -d
-cd packages/orchestrator && bun run db:generate && bun run db:migrate && cd ../..
-
-# Launch
-bun run swarm:dev          # Orchestrator on :3001
-bun run --cwd apps/web dev # Web UI on :3000
-```
-
-Open **http://localhost:3000** → connect your Leather wallet → pick a strategy → submit your first goal.
-
-### Solo Mode (No Docker, No Database)
+### Solo Mode (30 seconds, no Docker)
 
 ```bash
 git clone https://github.com/NoCodeClarity/NoCodeClarityAI.git
@@ -110,10 +128,24 @@ cp .env.example .env
 # Fill in: ANTHROPIC_API_KEY, WALLET_MNEMONIC
 # Add: SOLO_MODE=true
 
-bun run swarm:dev  # That's it. No Docker, no Postgres.
+bun run swarm:dev  # That's it. Orchestrator on :3001
 ```
 
-> **Solo mode** uses an in-memory store — data is lost on restart, but you're up in 30 seconds.
+### Full Mode (PostgreSQL + vector search)
+
+```bash
+git clone https://github.com/NoCodeClarity/NoCodeClarityAI.git
+cd NoCodeClarityAI && bun install
+cp .env.example .env
+# Fill in: ANTHROPIC_API_KEY, WALLET_MNEMONIC, DATABASE_URL
+
+docker compose up db -d
+cd packages/orchestrator && bun run db:generate && bun run db:migrate && cd ../..
+bun run swarm:dev          # Orchestrator on :3001
+bun run --cwd apps/web dev # Web UI on :3000
+```
+
+Open **http://localhost:3000** → connect Leather or Xverse → pick a strategy → submit your first goal.
 
 ---
 
@@ -121,42 +153,39 @@ bun run swarm:dev  # That's it. No Docker, no Postgres.
 
 ```
 nocodeclarity-ai/
-├── apps/web/                → Next.js 14 frontend
-│   ├── SimpleOnboarding     → No-code: connect → configure → deploy
-│   ├── AdvancedDashboard    → Portfolio, console, goal submission
-│   ├── AgentConsole         → Live task feed with approve/reject
-│   ├── ActivityPage         → Completed task history
-│   └── VaultPage            → Strategy configuration
+├── apps/web/                    → Next.js 14 frontend
+│   ├── SimpleOnboarding         → Wallet connect (Leather + Xverse) → risk → deploy
+│   ├── AdvancedDashboard        → Portfolio, console, goal submission
+│   ├── AgentConsole             → Live task feed with approve/reject
+│   ├── ActivityPage             → Completed task history
+│   ├── VaultPage                → Strategy configuration
+│   ├── WalletProvider           → Multi-wallet context (session persistence)
+│   └── WalletSelector           → Leather + Xverse selector component
 │
-├── packages/tools/          → Protocol interactions
-│   ├── read/hiro.ts         → 10 read tools (Hiro API)
-│   └── write/builders.ts    → 8 transaction builders
+├── packages/tools/              → Protocol interactions
+│   ├── read/hiro.ts             → 10 read tools (Hiro API)
+│   ├── read/clarity.ts          → Clarity contract analyzer (Hiro + Claude)
+│   ├── read/signers.ts          → Nakamoto signer health monitor
+│   └── write/builders.ts        → 12 transaction builders (all protocols)
 │
-├── packages/agents/         → AI agents
-│   ├── Analyst              → LLM-powered chain analysis
-│   ├── Risk Gate            → Rule-based risk scoring
-│   └── Executor             → Sign + broadcast with hash check
+├── packages/agents/             → AI pipeline
+│   ├── Analyst                  → LLM-powered chain analysis
+│   ├── Risk Gate                → Rule-based risk scoring
+│   └── Executor                 → Sign + broadcast with hash check
 │
-├── packages/orchestrator/   → Core engine
-│   ├── StacksSwarm          → Pipeline coordinator + DB helpers
-│   ├── server.ts            → Hono HTTP + SSE + kill switch
-│   └── db/schema.ts         → Drizzle + pgvector for agent memory
+├── packages/orchestrator/       → Core engine
+│   ├── index.ts (StacksSwarm)   → Pipeline coordinator + DB helpers
+│   ├── server.ts                → Hono HTTP + SSE + 16 API routes
+│   ├── scheduler.ts             → Recurring task scheduler
+│   ├── triggers.ts              → Chainhook-style event trigger engine
+│   ├── embeddings.ts            → Agent memory (LLM summaries + vectors)
+│   ├── sharing.ts               → Strategy export/import/URL sharing
+│   └── db/                      → Drizzle schema + dual-mode DB client
+│       ├── schema.ts            → pgvector tables (tasks, strategies, memory)
+│       └── client.ts            → PostgreSQL or in-memory (SOLO_MODE)
 │
-└── docker-compose.yml       → PostgreSQL + pgvector
+└── docker-compose.yml           → PostgreSQL + pgvector
 ```
-
----
-
-## Strategy Templates
-
-| Template | Protocols | Risk | Auto-Execute Limit |
-|----------|-----------|------|--------------------|
-| **Conservative** | Zest lending only | 🛡️ Low | 0.001 BTC |
-| **Moderate** | Zest + ALEX swaps | ⚖️ Medium | 0.01 BTC |
-| **Aggressive** | Zest + ALEX + Arkadiko | 🔥 High | 0.05 BTC |
-| **PoX Stacking** | STX → pool delegation | 🛡️ Low | 0.1 BTC |
-
-> **Auto-execute limit** = transactions below this value proceed automatically. Above it → `NEEDS_HUMAN` → you approve in the UI.
 
 ---
 
@@ -171,10 +200,28 @@ nocodeclarity-ai/
 | **Goal sanitization** | 500-char limit, control character stripping, prompt injection defense. |
 | **API auth** | All mutating endpoints require `ORCHESTRATOR_SECRET`. |
 | **Non-custodial** | Your keys never leave your server. No cloud custody. |
+| **Trigger whitelist** | Only 6 validated condition types accepted — no arbitrary code execution. |
+| **Rate limits** | Max 20 recurring tasks, max 10 triggers, min 60s cooldown. |
+| **Contract validation** | Contract IDs regex-validated before any API call. |
 
 ---
 
-## API Reference
+## Strategy Templates
+
+| Template | Protocols | Risk | Auto-Execute Limit |
+|----------|-----------|------|--------------------|
+| **Conservative** | Zest lending only | 🛡️ Low | 0.001 BTC |
+| **Moderate** | Zest + ALEX + Velar swaps | ⚖️ Medium | 0.01 BTC |
+| **Aggressive** | All 7 protocols | 🔥 High | 0.05 BTC |
+| **PoX Stacking** | STX → pool delegation | 🛡️ Low | 0.1 BTC |
+
+> **Auto-execute limit** = transactions below this value proceed automatically. Above it → `NEEDS_HUMAN` → you approve in the UI.
+
+Strategies can be **exported, shared via URL, and imported** by other users.
+
+---
+
+## Full API Reference
 
 ### Core Endpoints
 
@@ -183,28 +230,83 @@ nocodeclarity-ai/
 | `GET` | `/health` | No | Health check |
 | `GET` | `/stream` | No | SSE event stream (real-time) |
 | `POST` | `/pause` | No | **Kill switch** — halt all tasks |
-| `GET` | `/tasks` | Yes | List recent tasks |
+
+### Tasks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/tasks` | Yes | List recent tasks (last 50) |
+| `GET` | `/tasks/:id` | Yes | Get single task |
 | `POST` | `/tasks` | Yes | Submit a new goal |
 | `POST` | `/tasks/:id/approve` | Yes | Approve NEEDS_HUMAN task |
 | `POST` | `/tasks/:id/reject` | Yes | Reject a task |
+
+### Strategies
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
 | `GET` | `/strategies` | Yes | List strategies |
 | `POST` | `/strategies` | Yes | Create strategy |
+| `GET` | `/strategies/:id/export` | Yes | Export as shareable JSON |
+| `POST` | `/strategies/import` | Yes | Import from JSON or share code |
 
-### Submit a Goal
+### Recurring Tasks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/recurring` | Yes | List scheduled tasks |
+| `POST` | `/recurring` | Yes | Schedule a recurring goal |
+| `DELETE` | `/recurring/:id` | Yes | Cancel a recurring task |
+
+### Chain Triggers
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/triggers` | Yes | List triggers |
+| `POST` | `/triggers` | Yes | Register a trigger |
+| `DELETE` | `/triggers/:id` | Yes | Remove a trigger |
+
+### Analysis & Monitoring
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/analyze/:contractId` | Yes | Clarity contract security audit |
+| `GET` | `/signers` | No | Stacks signer health + PoX cycle |
+
+### Examples
 
 ```bash
+# Submit a goal
 curl -X POST http://localhost:3001/tasks \
   -H "Content-Type: application/json" \
   -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
+  -d '{ "goal": "swap 100 STX for sBTC on ALEX", "strategyId": "abc-123" }'
+
+# Schedule recurring compounding
+curl -X POST http://localhost:3001/recurring \
+  -H "Content-Type: application/json" \
+  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
+  -d '{ "goal": "compound my Zest yield", "strategyId": "abc", "interval": "24h" }'
+
+# Set a trigger for sBTC peg drop
+curl -X POST http://localhost:3001/triggers \
+  -H "Content-Type: application/json" \
+  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
   -d '{
-    "goal": "deposit my sBTC for yield",
-    "strategyId": "abc-123"
+    "name": "Hedge on peg drop",
+    "condition": { "type": "peg_health_below", "threshold": 85 },
+    "goal": "swap my sBTC to STX for safety",
+    "strategyId": "abc"
   }'
-```
 
-### SSE Stream
+# Analyze a contract before depositing
+curl http://localhost:3001/analyze/SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.alex-vault \
+  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET"
 
-```bash
+# Check signer health
+curl http://localhost:3001/signers
+
+# Watch the live event stream
 curl -N http://localhost:3001/stream
 # Events: task:created, task:step, task:needs_human, task:executing, task:complete, task:failed
 ```
@@ -217,78 +319,14 @@ curl -N http://localhost:3001/stream
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | ✅ | Claude API key (Haiku) for agent reasoning |
 | `WALLET_MNEMONIC` | ✅ | 12-word Stacks wallet seed phrase |
-| `DATABASE_URL` | ✅ | PostgreSQL + pgvector connection string |
+| `DATABASE_URL` | Production | PostgreSQL + pgvector connection string |
 | `ORCHESTRATOR_SECRET` | Recommended | API authentication secret |
 | `HIRO_API_KEY` | Optional | Hiro API key for higher rate limits |
 | `STACKS_NETWORK` | Optional | `mainnet` or `testnet` (default: `testnet`) |
-| `SOLO_MODE` | Optional | `true` for zero-config mode (no Postgres) |
+| `SOLO_MODE` | Optional | `true` for zero-config mode (no database) |
 | `ORCHESTRATOR_PORT` | Optional | Server port (default: `3001`) |
 | `AIBTC_REGISTER` | Optional | `true` to register with the AIBTC network |
-
----
-
-## Advanced Features
-
-### Recurring Tasks
-
-Schedule goals to run automatically on an interval:
-
-```bash
-curl -X POST http://localhost:3001/recurring \
-  -H "Content-Type: application/json" \
-  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
-  -d '{ "goal": "compound my Zest yield", "strategyId": "abc", "interval": "24h" }'
-# Valid intervals: 15m, 1h, 6h, 12h, 24h, 7d, 14d, 30d
-```
-
-### Chain Triggers
-
-React to on-chain conditions automatically:
-
-```bash
-curl -X POST http://localhost:3001/triggers \
-  -H "Content-Type: application/json" \
-  -H "x-orchestrator-secret: $ORCHESTRATOR_SECRET" \
-  -d '{
-    "name": "Hedge on peg drop",
-    "condition": { "type": "peg_health_below", "threshold": 85 },
-    "goal": "swap my sBTC to STX for safety",
-    "strategyId": "abc"
-  }'
-```
-
-Supported conditions: `peg_health_below`, `peg_health_above`, `stx_balance_above`, `stx_balance_below`, `pox_cycle_ending_in`, `congestion_level`
-
-### Contract Analysis
-
-Analyze any Clarity contract for security risks before interacting:
-
-```bash
-curl http://localhost:3001/analyze/SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.alex-vault
-# Returns: riskLevel, summary, findings[], publicFunctions[]
-```
-
-### Signer Health
-
-Monitor Nakamoto signer set health and PoX cycle timing:
-
-```bash
-curl http://localhost:3001/signers
-# Returns: totalSigners, healthPct, currentCycle, blocksUntilCycleEnd, rewardPhase
-```
-
-### Strategy Sharing
-
-Export and share strategies with the community:
-
-```bash
-# Export → get a share code
-curl http://localhost:3001/strategies/abc-123/export
-
-# Import from share code
-curl -X POST http://localhost:3001/strategies/import \
-  -d '{ "shareCode": "eyJ..." }'
-```
+| `AIBTC_OPERATOR_X_HANDLE` | Optional | Your X handle for AIBTC registry |
 
 ---
 
@@ -301,11 +339,14 @@ NoCodeClarity AI works as an [OpenClaw skill](https://github.com/Jubilee-Protoco
 npm run stacks-snapshot ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
 
 # Submit a goal via the orchestrator
-npm run stacks-swarm goal "stack my STX for 2 cycles" <strategy_id>
+npm run stacks-swarm goal "swap 10 STX for sBTC on ALEX" <strategy_id>
 
 # Monitor + approve
 npm run stacks-swarm tasks
 npm run stacks-swarm approve <task_id>
+
+# Kill switch
+npm run stacks-swarm pause
 ```
 
 Works with Claude Code, Cursor, Windsurf, Dexter, or any agent that reads `SKILL.md`.
@@ -317,18 +358,20 @@ Works with Claude Code, Cursor, Windsurf, Dexter, or any agent that reads `SKILL
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 14, React, Tailwind CSS |
+| Wallets | Leather + Xverse (Stacks Connect) |
 | Backend | Hono (HTTP + SSE), Bun runtime |
-| Database | PostgreSQL + pgvector (Drizzle ORM) |
-| AI | Claude Haiku (goal classification + chain analysis) |
-| Blockchain | Stacks.js, Hiro API |
-| Wallet | Leather (Stacks Connect) |
+| Database | PostgreSQL + pgvector (Drizzle ORM) or in-memory |
+| AI | Claude Haiku (goal classification + chain analysis + contract audits) |
+| Blockchain | Stacks.js, Hiro API, PoX-4, Chainhook-style triggers |
+| Protocols | ALEX, Velar, Bitflow, Arkadiko, Zest, sBTC, PoX |
+| Agent Infra | OpenClaw compatible, AIBTC Network registered |
 | Build | Turborepo monorepo |
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and code style guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, security rules, and code style.
 
 ## License
 
