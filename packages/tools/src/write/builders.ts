@@ -17,6 +17,7 @@ import {
   bufferCVFromString,
   noneCV,
   standardPrincipalCV,
+  contractPrincipalCV,
   uintCV,
   createStacksPrivateKey,
   signWithKey,
@@ -163,7 +164,7 @@ export async function buildALEXSwap(params: {
 }): Promise<UnsignedTx> {
   const ALEX_ROUTER = params.network === 'mainnet'
     ? 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9'
-    : 'ST3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9'
+    : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [fromAddress, fromName] = params.fromToken.split('.')
   const [toAddress, toName] = params.toToken.split('.')
@@ -173,8 +174,8 @@ export async function buildALEXSwap(params: {
     contractName: 'amm-swap-pool-v1-1',
     functionName: 'swap-helper',
     functionArgs: [
-      standardPrincipalCV(params.fromToken),
-      standardPrincipalCV(params.toToken),
+      contractPrincipalCV(fromAddress!, fromName!),
+      contractPrincipalCV(toAddress!, toName!),
       uintCV(params.amountIn),
       uintCV(params.minAmountOut),
     ],
@@ -225,7 +226,7 @@ export async function buildVelarSwap(params: {
 }): Promise<UnsignedTx> {
   const VELAR_ROUTER = params.network === 'mainnet'
     ? 'SP1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1'
-    : 'ST1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1'
+    : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [fromAddress, fromName] = params.fromToken.split('.')
   const [toAddress, toName] = params.toToken.split('.')
@@ -235,8 +236,8 @@ export async function buildVelarSwap(params: {
     contractName: 'velar-swap-v1',
     functionName: 'swap',
     functionArgs: [
-      standardPrincipalCV(params.fromToken),
-      standardPrincipalCV(params.toToken),
+      contractPrincipalCV(fromAddress!, fromName!),
+      contractPrincipalCV(toAddress!, toName!),
       uintCV(params.amountIn),
       uintCV(params.minAmountOut),
     ],
@@ -284,7 +285,7 @@ export async function buildBitflowStake(params: {
 }): Promise<UnsignedTx> {
   const BITFLOW_STAKING = params.network === 'mainnet'
     ? 'SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
-    : 'ST4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+    : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const tx = await makeUnsignedContractCall({
     contractAddress: BITFLOW_STAKING,
@@ -331,7 +332,7 @@ export async function buildBitflowSwap(params: {
 }): Promise<UnsignedTx> {
   const BITFLOW_ROUTER = params.network === 'mainnet'
     ? 'SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
-    : 'ST4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG'
+    : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [fromAddress, fromName] = params.fromToken.split('.')
   const [toAddress, toName] = params.toToken.split('.')
@@ -341,8 +342,8 @@ export async function buildBitflowSwap(params: {
     contractName: 'bitflow-pool-v1',
     functionName: 'swap',
     functionArgs: [
-      standardPrincipalCV(params.fromToken),
-      standardPrincipalCV(params.toToken),
+      contractPrincipalCV(fromAddress!, fromName!),
+      contractPrincipalCV(toAddress!, toName!),
       uintCV(params.amountIn),
       uintCV(params.minAmountOut),
     ],
@@ -393,7 +394,7 @@ export async function buildArkadikoSwap(params: {
 }): Promise<UnsignedTx> {
   const ARKADIKO_ROUTER = params.network === 'mainnet'
     ? 'SP2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89'
-    : 'ST2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89'
+    : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [fromAddress, fromName] = params.fromToken.split('.')
   const [toAddress, toName] = params.toToken.split('.')
@@ -403,8 +404,8 @@ export async function buildArkadikoSwap(params: {
     contractName: 'arkadiko-swap-v2-1',
     functionName: 'swap-x-for-y',
     functionArgs: [
-      standardPrincipalCV(params.fromToken),
-      standardPrincipalCV(params.toToken),
+      contractPrincipalCV(fromAddress!, fromName!),
+      contractPrincipalCV(toAddress!, toName!),
       uintCV(params.amountIn),
       uintCV(params.minAmountOut),
     ],
@@ -453,7 +454,7 @@ export async function buildZestDeposit(params: {
 }): Promise<UnsignedTx> {
   const ZEST_POOL = params.network === 'mainnet'
     ? 'SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N'
-    : 'ST2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N'
+    : 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' // testnet placeholder
 
   const [tokenAddress, tokenName] = params.token.split('.')
 
@@ -462,7 +463,7 @@ export async function buildZestDeposit(params: {
     contractName: 'pool-v2-0',
     functionName: 'supply',
     functionArgs: [
-      standardPrincipalCV(params.token),
+      contractPrincipalCV(tokenAddress!, tokenName!),
       uintCV(params.amount),
       standardPrincipalCV(params.senderAddress),
     ],

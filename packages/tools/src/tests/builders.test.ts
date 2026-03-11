@@ -18,6 +18,7 @@ import {
   buildDelegateSTX,
 } from '../write/builders.js'
 
+// Valid Stacks testnet addresses (must pass c32check validation)
 const SENDER = 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM'
 const RECIPIENT = 'ST2CY5V39NHDPWSXMW9QDT3HC3GD6Q6XX4CFRK9AG'
 const NETWORK = 'testnet' as const
@@ -96,8 +97,8 @@ describe('ALEX Builders', () => {
   it('buildALEXSwap — valid swap tx with dual post-conditions', async () => {
     const tx = await buildALEXSwap({
       senderAddress: SENDER,
-      fromToken: 'ST3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.token-wstx',
-      toToken: 'ST3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR.token-sbtc',
+      fromToken: `${SENDER}.token-wstx`,
+      toToken: `${SENDER}.token-sbtc`,
       amountIn: 10_000_000n,
       minAmountOut: 500n,
       network: NETWORK,
@@ -114,8 +115,8 @@ describe('Velar Builders', () => {
   it('buildVelarSwap — valid swap with dual post-conditions', async () => {
     const tx = await buildVelarSwap({
       senderAddress: SENDER,
-      fromToken: 'ST1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1.token-wstx',
-      toToken: 'ST1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1.token-sbtc',
+      fromToken: `${SENDER}.token-wstx`,
+      toToken: `${SENDER}.token-sbtc`,
       amountIn: 5_000_000n,
       minAmountOut: 250n,
       network: NETWORK,
@@ -141,8 +142,8 @@ describe('Bitflow Builders', () => {
   it('buildBitflowSwap — valid swap with dual post-conditions', async () => {
     const tx = await buildBitflowSwap({
       senderAddress: SENDER,
-      fromToken: 'ST4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.token-wstx',
-      toToken: 'ST4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.token-sbtc',
+      fromToken: `${SENDER}.token-wstx`,
+      toToken: `${SENDER}.token-sbtc`,
       amountIn: 5_000_000n,
       minAmountOut: 250n,
       network: NETWORK,
@@ -157,8 +158,8 @@ describe('Arkadiko Builders', () => {
   it('buildArkadikoSwap — valid swap with dual post-conditions', async () => {
     const tx = await buildArkadikoSwap({
       senderAddress: SENDER,
-      fromToken: 'ST2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89.wrapped-stx',
-      toToken: 'ST2C2YFP12AJZB1MADC7RNQ41Q3HBAK9HKWMK5M89.arkadiko-token',
+      fromToken: `${SENDER}.wrapped-stx`,
+      toToken: `${SENDER}.arkadiko-token`,
       amountIn: 5_000_000n,
       minAmountOut: 1_000_000n,
       network: NETWORK,
@@ -173,7 +174,7 @@ describe('Lending Builders', () => {
   it('buildZestDeposit — valid lending tx', async () => {
     const tx = await buildZestDeposit({
       senderAddress: SENDER,
-      token: 'ST2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.sbtc-token',
+      token: `${SENDER}.sbtc-token`,
       amount: 100_000n,
       network: NETWORK,
     })
