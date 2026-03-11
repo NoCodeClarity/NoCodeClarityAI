@@ -9,7 +9,7 @@
 
 > **Your AI manages Bitcoin yield on Stacks so you don't have to.**
 
-NoCodeClarity AI is the **most comprehensive AI agent platform for Stacks**. It autonomously manages sBTC yield, PoX stacking, DEX swaps across 4 protocols, lending, liquid stacking, and contract security analysis. Non-custodial. Risk-gated. Kill switch always one click away.
+NoCodeClarity AI is the **most comprehensive AI agent platform for Stacks**. It autonomously manages sBTC yield, PoX stacking, DEX swaps across several protocols, lending, liquid stacking, and contract security analysis. Non-custodial. Risk-gated. Kill switch always one click away.
 
 Tell it what you want in plain English. Three AI agents handle the rest.
 
