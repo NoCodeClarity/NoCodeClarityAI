@@ -4,6 +4,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
 import { TransactionVersion } from '@stacks/transactions'
 import { StacksSwarm } from './index.js'
 import type { SwarmEvent } from './index.js'
@@ -13,6 +14,8 @@ import { eq } from 'drizzle-orm'
 import { logger, requestLogger } from './logger.js'
 import { createChainhookHandler } from './chainhook.js'
 import { TaskRecoveryManager } from './recovery.js'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve, join } from 'node:path'
 
 // ── Initialize wallet from mnemonic ──────────────────────────────────────────
 
@@ -45,7 +48,10 @@ function broadcastEvent(event: SwarmEvent) {
 const app = new Hono()
 
 app.use('*', cors({
-  origin: process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000',
+  origin: [
+    process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000',
+    'http://localhost:5173',
+  ],
   credentials: true,
 }))
 
@@ -466,6 +472,102 @@ async function main() {
     chainhookSecret,
   ))
 
+  // ── Frontend API endpoints (no auth — wallet-connected users) ────────────
+
+  app.get('/api/snapshot/:address', async (c) => {
+    const addr = c.req.param('address')
+    if (!/^(SP|ST)[A-Z0-9]{30,}$/.test(addr)) {
+      return c.json({ error: 'Invalid Stacks address' }, 400)
+    }
+    try {
+      const { captureChainSnapshot } = await import('@nocodeclarity/tools/read')
+      const snapshot = await captureChainSnapshot(addr, '', network)
+      return c.json(snapshot)
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  app.get('/api/tasks', async (c) => {
+    const taskList = await swarm.listTasks(50)
+    return c.json({ tasks: taskList })
+  })
+
+  app.post('/api/propose', async (c) => {
+    const body = await c.req.json()
+    const { goal, strategyId } = body as { goal: string; strategyId: string }
+    if (!goal || typeof goal !== 'string') {
+      return c.json({ error: 'goal (string) is required' }, 400)
+    }
+    if (goal.length > 500) {
+      return c.json({ error: 'goal exceeds 500 characters' }, 400)
+    }
+    // For frontend, use a default strategy if strategyId maps to a template name
+    const defaultTemplates: Record<string, any> = {
+      yield: { id: 'yield', name: 'Yield Optimizer', template: 'deposit_yield', mode: 'simple', riskConfig: { maxSlippage: 0.02, maxValue: 50_000_000 }, allocations: {}, active: true, createdAt: Date.now() },
+      balanced: { id: 'balanced', name: 'Balanced Growth', template: 'swap', mode: 'simple', riskConfig: { maxSlippage: 0.03, maxValue: 100_000_000 }, allocations: {}, active: true, createdAt: Date.now() },
+      conservative: { id: 'conservative', name: 'Capital Preservation', template: 'stack_pox', mode: 'simple', riskConfig: { maxSlippage: 0.01, maxValue: 200_000_000 }, allocations: {}, active: true, createdAt: Date.now() },
+    }
+    let strategy = defaultTemplates[strategyId]
+    if (!strategy) {
+      // Try DB lookup
+      const [row] = await getDB().select().from(strategies).where(eq(strategies.id, strategyId))
+      if (!row) return c.json({ error: 'Strategy not found' }, 404)
+      strategy = {
+        id: row.id, name: row.name, template: row.template as any,
+        mode: row.mode as any, riskConfig: row.riskConfig as any,
+        allocations: row.allocations as any, active: row.active,
+        createdAt: row.createdAt.getTime(),
+      }
+    }
+    try {
+      const task = await swarm.execute(goal, strategy)
+      return c.json({ task, taskId: task.id }, 201)
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400)
+    }
+  })
+
+  app.post('/api/approve/:id', async (c) => {
+    try {
+      await swarm.humanApprove(c.req.param('id'))
+      return c.json({ approved: true })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400)
+    }
+  })
+
+  app.post('/api/reject/:id', async (c) => {
+    try {
+      await swarm.humanReject(c.req.param('id'))
+      return c.json({ rejected: true })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400)
+    }
+  })
+
+  // ── Static file serving for frontend ────────────────────────────────────
+
+  const frontendDist = resolve(import.meta.dirname ?? __dirname, '../../../frontend/dist')
+  if (existsSync(frontendDist)) {
+    // Serve static assets
+    app.use('/assets/*', serveStatic({ root: frontendDist }))
+    app.get('/favicon.ico', serveStatic({ root: frontendDist, path: '/favicon.ico' }))
+    app.get('/logo.svg', serveStatic({ root: frontendDist, path: '/logo.svg' }))
+
+    // SPA fallback — serve index.html for all non-API routes
+    const indexHtml = readFileSync(join(frontendDist, 'index.html'), 'utf-8')
+    app.get('*', (c) => {
+      // Skip API and v1 routes
+      const path = c.req.path
+      if (path.startsWith('/api/') || path.startsWith('/v1/') || path.startsWith('/hooks/')) {
+        return c.notFound()
+      }
+      return c.html(indexHtml)
+    })
+    console.log(`  Frontend: serving from ${frontendDist}`)
+  }
+
   // ── API v1 group (all routes also available at /v1/ prefix) ──────────────
   const v1 = new Hono()
   v1.route('/', app)
@@ -480,6 +582,7 @@ async function main() {
     port, mode, wallet: address, network,
     apiVersion: 'v1',
     chainhookWebhook: `http://localhost:${port}/hooks/chainhook`,
+    frontend: existsSync(frontendDist) ? 'serving' : 'not found',
   })
   console.log(`✓ NoCodeClarity AI orchestrator running on :${port} [${mode}]`)
   console.log(`  Wallet: ${address}`)

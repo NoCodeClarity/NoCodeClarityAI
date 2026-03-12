@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* ── NoCodeClarity Theme (purple primary + orange accent) ──────────────── */
+:root {
+  --background: 260 20% 5%;
+  --foreground: 0 0% 98%;
+  --card: 260 15% 8%;
+  --card-foreground: 0 0% 98%;
+  --popover: 260 15% 8%;
+  --popover-foreground: 0 0% 98%;
+
+  --primary: 265 85% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  --accent: 30 100% 55%;
+  --accent-foreground: 30 100% 10%;
+
+  --secondary: 260 10% 14%;
+  --secondary-foreground: 0 0% 98%;
+
+  --muted: 260 10% 18%;
+  --muted-foreground: 260 10% 60%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 260 10% 16%;
+  --input: 260 10% 16%;
+  --ring: 265 85% 60%;
+  --radius: 0.5rem;
+}
+
+/* ── Base Styles ──────────────────────────────────────────────────────── */
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle radial glow on background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 100%, hsl(var(--accent) / 0.03) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+code, pre, .font-mono {
+  font-family: 'Fira Code', monospace;
+}
+
+/* ── Utility Classes ──────────────────────────────────────────────────── */
+.glass-panel {
+  background: hsl(var(--card) / 0.6);
+  border: 1px solid hsl(var(--border) / 0.5);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+}
+
+.terminal-box {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: var(--radius);
+  padding: 1rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Glow animation for pending approval items */
+@keyframes glow {
+  0% { box-shadow: 0 0 5px hsl(var(--primary) / 0.2); }
+  100% { box-shadow: 0 0 15px hsl(var(--primary) / 0.5), 0 0 5px hsl(var(--primary) / 0.3) inset; }
+}
+.animate-glow {
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}

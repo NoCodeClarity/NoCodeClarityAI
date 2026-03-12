@@ -1,0 +1,33 @@
+{
+  "name": "@nocodeclarity/frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@stacks/connect": "^7.0.0",
+    "@stacks/network": "^6.17.0",
+    "@stacks/transactions": "^6.17.0",
+    "@tanstack/react-query": "^5.0.0",
+    "wouter": "^3.0.0",
+    "lucide-react": "^0.400.0",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/vite": "^4.0.0"
+  }
+}
