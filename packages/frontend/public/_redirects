@@ -1,2 +1,6 @@
-# SPA fallback — all routes serve index.html
+# API proxy to orchestrator backend
+# Replace YOUR_RAILWAY_URL after deploying (e.g. https://nocodeclarityai-production.up.railway.app)
+/api/*  YOUR_RAILWAY_URL/api/:splat  200
+
+# SPA fallback — all other routes serve index.html
 /*    /index.html   200
