@@ -3,7 +3,6 @@
 // Pipeline: Goal → [Analyst: snapshot] → [Risk Gate: evaluate] → [Executor: sign+broadcast]
 
 import { EventEmitter } from 'events'
-import Anthropic from '@anthropic-ai/sdk'
 import { getDB } from './db/client.js'
 import { tasks, strategies, memory, knownProtocols } from './db/schema.js'
 import { eq, desc } from 'drizzle-orm'
@@ -18,10 +17,38 @@ import type {
   TaskStep,
 } from '@nocodeclarity/tools'
 import { captureChainSnapshot } from '@nocodeclarity/tools/read'
-import { signAndBroadcast, waitForConfirmation } from '@nocodeclarity/tools/write'
+import { signAndBroadcast, waitForConfirmation, getPublicKeyFromPrivate } from '@nocodeclarity/tools/write'
 import { analyzeSnapshot, evaluateRisk, describeExecution } from '@nocodeclarity/agents'
 
-const anthropic = new Anthropic()
+// ── Anthropic API (direct fetch, no SDK) ─────────────────────────────────────
+
+async function claudeChat(system: string, userMessage: string, maxTokens = 500): Promise<string> {
+  const apiKey = process.env['ANTHROPIC_API_KEY']
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required')
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  })
+
+  if (!response.ok) {
+    const err: any = await response.json().catch(() => ({}))
+    throw new Error(`Anthropic API error ${response.status}: ${err?.error?.message ?? 'unknown'}`)
+  }
+
+  const data: any = await response.json()
+  return data?.content?.[0]?.text?.trim() ?? ''
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -164,20 +191,13 @@ export class StacksSwarm extends EventEmitter {
       await import('@nocodeclarity/tools/write')
 
     // Step 1: classify goal
-    const classifyResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 50,
-      system: `Classify the user's goal into exactly one template.
-Return ONLY the template name, nothing else.
-Templates: deposit_yield, stack_pox, swap, transfer, unknown`,
-      messages: [{ role: 'user', content: goal }]
-    })
+    const templateText = await claudeChat(
+      `Classify the user's goal into exactly one template.\nReturn ONLY the template name, nothing else.\nTemplates: deposit_yield, stack_pox, swap, transfer, unknown`,
+      goal,
+      50
+    )
 
-    const template = (
-      classifyResponse.content[0]?.type === 'text'
-        ? classifyResponse.content[0].text.trim()
-        : 'unknown'
-    ) as 'deposit_yield' | 'stack_pox' | 'swap' | 'transfer' | 'unknown'
+    const template = (templateText || 'unknown') as 'deposit_yield' | 'stack_pox' | 'swap' | 'transfer' | 'unknown'
 
     if (template === 'unknown') {
       throw new Error(
@@ -188,25 +208,11 @@ Templates: deposit_yield, stack_pox, swap, transfer, unknown`,
     }
 
     // Step 2: extract parameters using LLM
-    const extractResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
-      system: `Extract transaction parameters from the user's goal.
-Return ONLY valid JSON. No preamble. No markdown.
-Available wallet: ${JSON.stringify(snapshot.wallet.stxBalance)}
-Token balances: ${JSON.stringify(snapshot.wallet.tokenBalances)}
-Template: ${template}
-
-For deposit_yield: { "token": "stx" | "sbtc", "amount": number_in_base_units }
-For stack_pox: { "amount": number_in_microSTX, "cycles": number_1_to_12 }
-For swap: { "fromToken": "stx" | "sbtc", "toToken": "stx" | "sbtc", "amount": number_in_base_units }
-For transfer: { "token": "stx" | "sbtc", "amount": number_in_base_units, "recipient": "SP..." }`,
-      messages: [{ role: 'user', content: goal }]
-    })
-
-    const paramsText = extractResponse.content[0]?.type === 'text'
-      ? extractResponse.content[0].text.trim()
-      : '{}'
+    const paramsText = await claudeChat(
+      `Extract transaction parameters from the user's goal.\nReturn ONLY valid JSON. No preamble. No markdown.\nAvailable wallet: ${JSON.stringify(snapshot.wallet.stxBalance)}\nToken balances: ${JSON.stringify(snapshot.wallet.tokenBalances)}\nTemplate: ${template}\n\nFor deposit_yield: { "token": "stx" | "sbtc", "amount": number_in_base_units }\nFor stack_pox: { "amount": number_in_microSTX, "cycles": number_1_to_12 }\nFor swap: { "fromToken": "stx" | "sbtc", "toToken": "stx" | "sbtc", "amount": number_in_base_units }\nFor transfer: { "token": "stx" | "sbtc", "amount": number_in_base_units, "recipient": "SP..." }`,
+      goal,
+      500
+    )
 
     let params: any
     try {

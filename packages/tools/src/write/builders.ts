@@ -10,6 +10,7 @@ import {
   AnchorMode,
   PostConditionMode,
   TransactionVersion,
+  TransactionSigner,
   makeStandardSTXPostCondition,
   makeStandardFungiblePostCondition,
   createAssetInfo,
@@ -20,7 +21,7 @@ import {
   contractPrincipalCV,
   uintCV,
   createStacksPrivateKey,
-  signWithKey,
+  pubKeyfromPrivKey,
 } from '@stacks/transactions'
 import { bytesToHex } from '@stacks/common'
 import { StacksMainnet, StacksTestnet } from '@stacks/network'
@@ -579,6 +580,17 @@ export async function buildDelegateSTX(params: {
 
 // ── TASK-013: signAndBroadcast + waitForConfirmation ─────────────────────────
 
+/**
+ * Derive the public key hex string from a private key.
+ * Call this once at startup and pass it to builders as `publicKey`.
+ */
+export function getPublicKeyFromPrivate(privateKeyHex: string): string {
+  const key = createStacksPrivateKey(privateKeyHex)
+  return (pubKeyfromPrivKey as any)(key)?.data
+    ? bytesToHex((pubKeyfromPrivKey as any)(key).data)
+    : bytesToHex((pubKeyfromPrivKey as any)(privateKeyHex))
+}
+
 export async function signAndBroadcast(params: {
   unsignedTx: UnsignedTx
   approvedHash: string
@@ -594,10 +606,12 @@ export async function signAndBroadcast(params: {
     )
   }
 
+  // Deserialize and re-sign with TransactionSigner
   const tx = deserializeTransaction(params.unsignedTx.serialized)
-  const key = createStacksPrivateKey(params.privateKey)
-  ;(signWithKey as any)(tx, key)
+  const signer = new TransactionSigner(tx)
+  signer.signOrigin(createStacksPrivateKey(params.privateKey))
 
+  // Broadcast the signed transaction
   const result = await broadcastTransaction(tx, getNetwork(params.network))
 
   if ('error' in result) {
