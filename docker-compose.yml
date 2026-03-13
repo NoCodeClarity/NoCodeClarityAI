@@ -23,7 +23,7 @@ services:
   orchestrator:
     build:
       context: .
-      dockerfile: Dockerfile.orchestrator
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       db:
@@ -34,26 +34,12 @@ services:
       WALLET_MNEMONIC: ${WALLET_MNEMONIC}
       ORCHESTRATOR_SECRET: ${ORCHESTRATOR_SECRET}
       HIRO_API_KEY: ${HIRO_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       STACKS_NETWORK: ${STACKS_NETWORK:-testnet}
       ORCHESTRATOR_PORT: "3001"
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "3001:3001"
-
-  # ── Web Frontend ─────────────────────────────────────────────────────────────
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-    restart: unless-stopped
-    depends_on:
-      - orchestrator
-    environment:
-      ORCHESTRATOR_URL: http://orchestrator:3001
-      ORCHESTRATOR_SECRET: ${ORCHESTRATOR_SECRET}
-      NEXT_PUBLIC_STACKS_NETWORK: ${STACKS_NETWORK:-testnet}
-    ports:
-      - "3000:3000"
 
 volumes:
   pgdata:

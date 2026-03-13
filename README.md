@@ -129,7 +129,7 @@ cp .env.example .env
 # Fill in: ANTHROPIC_API_KEY, WALLET_MNEMONIC
 # Add: SOLO_MODE=true
 
-bun run swarm:dev  # That's it. Orchestrator on :3001
+bun run swarm:dev  # Orchestrator on :3001
 ```
 
 ### Full Mode (PostgreSQL + vector search)
@@ -142,11 +142,11 @@ cp .env.example .env
 
 docker compose up db -d
 cd packages/orchestrator && bun run db:generate && bun run db:migrate && cd ../..
-bun run swarm:dev          # Orchestrator on :3001
-bun run --cwd apps/web dev # Web UI on :3000
+bun run swarm:dev                              # Orchestrator on :3001
+cd packages/frontend && npm run dev             # Frontend on :5173
 ```
 
-Open **http://localhost:3000** → connect Leather or Xverse → pick a strategy → submit your first goal.
+Open **http://localhost:5173** → connect Leather or Xverse → pick a strategy → submit your first goal.
 
 ---
 
@@ -154,38 +154,36 @@ Open **http://localhost:3000** → connect Leather or Xverse → pick a strategy
 
 ```
 nocodeclarity-ai/
-├── apps/web/                    → Next.js 14 frontend
-│   ├── SimpleOnboarding         → Wallet connect (Leather + Xverse) → risk → deploy
-│   ├── AdvancedDashboard        → Portfolio, console, goal submission
-│   ├── AgentConsole             → Live task feed with approve/reject
-│   ├── ActivityPage             → Completed task history
-│   ├── VaultPage                → Strategy configuration
-│   ├── WalletProvider           → Multi-wallet context (session persistence)
-│   └── WalletSelector           → Leather + Xverse selector component
+├── packages/frontend/               → React + Vite frontend
+│   ├── OnboardingFlow               → Stacks Connect (Leather/Xverse) → strategy → deploy
+│   ├── Console                      → 3-panel: portfolio + execution feed + commands
+│   ├── Activity                     → Completed task history with Hiro Explorer links
+│   ├── Vault                        → STX/sBTC balance cards + yield positions
+│   └── WalletProvider               → @stacks/connect context (no seed phrase needed)
 │
-├── packages/tools/              → Protocol interactions
-│   ├── read/hiro.ts             → 10 read tools (Hiro API)
-│   ├── read/clarity.ts          → Clarity contract analyzer (Hiro + Claude)
-│   ├── read/signers.ts          → Nakamoto signer health monitor
-│   └── write/builders.ts        → 12 transaction builders (all protocols)
+├── packages/tools/                  → Protocol interactions
+│   ├── read/hiro.ts                 → 10 read tools (Hiro API)
+│   ├── read/clarity.ts              → Clarity contract analyzer (Hiro + Claude)
+│   ├── read/signers.ts              → Nakamoto signer health monitor
+│   └── write/builders.ts            → 12 transaction builders (all protocols)
 │
-├── packages/agents/             → AI pipeline
-│   ├── Analyst                  → LLM-powered chain analysis
-│   ├── Risk Gate                → Rule-based risk scoring
-│   └── Executor                 → Sign + broadcast with hash check
+├── packages/agents/                 → AI pipeline
+│   ├── Analyst                      → LLM-powered chain analysis
+│   ├── Risk Gate                    → Rule-based risk scoring
+│   └── Executor                     → Sign + broadcast with hash check
 │
-├── packages/orchestrator/       → Core engine
-│   ├── index.ts (StacksSwarm)   → Pipeline coordinator + DB helpers
-│   ├── server.ts                → Hono HTTP + SSE + 16 API routes
-│   ├── scheduler.ts             → Recurring task scheduler
-│   ├── triggers.ts              → Chainhook-style event trigger engine
-│   ├── embeddings.ts            → Agent memory (LLM summaries + vectors)
-│   ├── sharing.ts               → Strategy export/import/URL sharing
-│   └── db/                      → Drizzle schema + dual-mode DB client
-│       ├── schema.ts            → pgvector tables (tasks, strategies, memory)
-│       └── client.ts            → PostgreSQL or in-memory (SOLO_MODE)
+├── packages/orchestrator/           → Core engine
+│   ├── index.ts (StacksSwarm)       → Pipeline coordinator + DB helpers
+│   ├── server.ts                    → Hono HTTP + SSE + API routes + SPA serving
+│   ├── scheduler.ts                 → Recurring task scheduler
+│   ├── triggers.ts                  → Chainhook-style event trigger engine
+│   ├── embeddings.ts                → Agent memory (LLM summaries + vectors)
+│   ├── sharing.ts                   → Strategy export/import/URL sharing
+│   └── db/                          → Drizzle schema + dual-mode DB client
 │
-└── docker-compose.yml           → PostgreSQL + pgvector
+├── Dockerfile                       → Railway deployment (Bun runtime)
+├── docker-compose.yml               → Local dev: PostgreSQL + pgvector
+└── .github/workflows/ci.yml         → CI: typecheck + tests + build
 ```
 
 ---
@@ -204,6 +202,30 @@ nocodeclarity-ai/
 | **Trigger whitelist** | Only 6 validated condition types accepted — no arbitrary code execution. |
 | **Rate limits** | Max 20 recurring tasks, max 10 triggers, min 60s cooldown. |
 | **Contract validation** | Contract IDs regex-validated before any API call. |
+
+---
+
+## Deployment
+
+### Production (Railway + Netlify)
+
+1. **Backend** — Deploy to [Railway](https://railway.app) from this repo. It auto-detects the `Dockerfile`. Add a PostgreSQL service and set your env vars (`WALLET_MNEMONIC`, `ANTHROPIC_API_KEY`, `DATABASE_URL`).
+
+2. **Frontend** — Connect to [Netlify](https://netlify.com) from this repo:
+   - Base directory: `packages/frontend`
+   - Build command: `npm run build`
+   - Publish directory: `packages/frontend/dist`
+   - Update `packages/frontend/public/_redirects` with your Railway URL for API proxy.
+
+3. **Wallet Connect** — Users connect via **Leather** or **Xverse** browser wallet. No seed phrase required — signing happens in the wallet popup via `@stacks/connect`.
+
+### Self-Hosted (Docker)
+
+```bash
+docker compose up -d   # Starts PostgreSQL + orchestrator
+```
+
+The orchestrator auto-serves the frontend from `packages/frontend/dist/` when built.
 
 ---
 

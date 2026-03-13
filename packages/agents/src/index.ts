@@ -2,7 +2,6 @@
 // Three agents: Analyst, Risk Gate, Executor
 // Each agent is a function that takes context and returns a result.
 
-import Anthropic from '@anthropic-ai/sdk'
 import type {
   ChainSnapshot,
   GateResult,
@@ -11,7 +10,35 @@ import type {
   UnsignedTx,
 } from '@nocodeclarity/tools'
 
-const anthropic = new Anthropic()
+// ── Anthropic API (direct fetch, no SDK) ─────────────────────────────────────
+
+async function claudeChat(system: string, user: string, maxTokens = 800): Promise<string> {
+  const apiKey = process.env['ANTHROPIC_API_KEY']
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required for agent calls')
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: user }],
+    }),
+  })
+
+  if (!res.ok) {
+    const err: any = await res.json().catch(() => ({}))
+    throw new Error(`Anthropic API error ${res.status}: ${err?.error?.message ?? 'unknown'}`)
+  }
+
+  const data: any = await res.json()
+  return data?.content?.[0]?.text?.trim() ?? 'Response unavailable'
+}
 
 // ── Analyst Agent ────────────────────────────────────────────────────────────
 
@@ -19,10 +46,8 @@ export async function analyzeSnapshot(
   snapshot: ChainSnapshot,
   goal: string
 ): Promise<string> {
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 800,
-    system: `You are a Stacks blockchain analyst agent. Analyze the chain snapshot and assess whether the user's goal is feasible given current market conditions. Be concise.
+  return claudeChat(
+    `You are a Stacks blockchain analyst agent. Analyze the chain snapshot and assess whether the user's goal is feasible given current market conditions. Be concise.
 
 Key factors to assess:
 - Wallet balance sufficiency
@@ -32,15 +57,9 @@ Key factors to assess:
 - Protocol exposure limits
 
 Return a brief assessment (max 200 words) ending with FEASIBLE or INFEASIBLE.`,
-    messages: [{
-      role: 'user',
-      content: `Goal: ${goal}\n\nSnapshot:\n${JSON.stringify(snapshot, null, 2)}`
-    }]
-  })
-
-  return response.content[0]?.type === 'text'
-    ? response.content[0].text
-    : 'Analysis unavailable'
+    `Goal: ${goal}\n\nSnapshot:\n${JSON.stringify(snapshot, null, 2)}`,
+    800,
+  )
 }
 
 // ── Risk Gate Agent ──────────────────────────────────────────────────────────
