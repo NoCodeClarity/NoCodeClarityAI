@@ -68,6 +68,15 @@ export function rejectTask(id: string): Promise<void> {
   return request(`/reject/${id}`, { method: 'POST' })
 }
 
+// ── Broadcast (client-side signed) ──────────────────────────────────────────
+
+export function broadcastTransaction(taskId: string, signedTxHex: string): Promise<{ txid: string; taskId: string }> {
+  return request('/broadcast', {
+    method: 'POST',
+    body: JSON.stringify({ taskId, signedTxHex }),
+  })
+}
+
 // ── Recovery ─────────────────────────────────────────────────────────────────
 
 export interface RecoveryStats {

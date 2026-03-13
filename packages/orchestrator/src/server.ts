@@ -528,6 +528,38 @@ async function main() {
     }
   })
 
+  // Broadcast a client-signed transaction
+  app.post('/api/broadcast', async (c) => {
+    const body = await c.req.json()
+    const { taskId, signedTxHex } = body as { taskId: string; signedTxHex: string }
+    if (!taskId || !signedTxHex) {
+      return c.json({ error: 'taskId and signedTxHex are required' }, 400)
+    }
+
+    try {
+      const { broadcastTransaction, deserializeTransaction } = await import('@stacks/transactions')
+      const { StacksMainnet, StacksTestnet } = await import('@stacks/network')
+      const stacksNetwork = network === 'mainnet' ? new StacksMainnet() : new StacksTestnet()
+
+      // Deserialize to verify it's a valid transaction
+      const tx = deserializeTransaction(signedTxHex)
+
+      // Broadcast
+      const result = await broadcastTransaction(tx, stacksNetwork)
+      const txid = typeof result === 'string' ? result : (result as any).txid ?? result.toString()
+
+      // Update task with txid
+      const task = await swarm.getTask(taskId)
+      if (task) {
+        await swarm.recordBroadcast(taskId, txid)
+      }
+
+      return c.json({ txid, taskId })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400)
+    }
+  })
+
   app.post('/api/approve/:id', async (c) => {
     try {
       await swarm.humanApprove(c.req.param('id'))

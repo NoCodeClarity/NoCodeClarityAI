@@ -406,6 +406,29 @@ export class StacksSwarm extends EventEmitter {
     if (confirmation.status === 'success') {
       await this.updateTaskStatus(taskId, 'complete')
       this.emitEvent('task:complete', taskId, { txid, blockHeight: confirmation.blockHeight })
+
+      // Store memory embedding for future similarity search
+      try {
+        const { generateMemoryEmbedding } = await import('./embeddings.js')
+        const task = await this.getTask(taskId)
+        const { summary, embedding } = await generateMemoryEmbedding({
+          protocol: task?.unsignedTx?.protocol ?? 'unknown',
+          goal,
+          outcome: 'success',
+          snapshotSummary: JSON.stringify(snapshot.network).slice(0, 500),
+        })
+        const db = getDB()
+        await db.insert(memory).values({
+          taskId,
+          protocol: task?.unsignedTx?.protocol ?? 'unknown',
+          outcome: 'success',
+          summary,
+          embedding,
+        })
+      } catch (memErr: any) {
+        // Non-fatal — don't fail the task over memory storage
+        console.warn('Memory embedding storage failed (non-fatal):', memErr.message)
+      }
     } else {
       await this.updateTaskStatus(taskId, 'failed')
       this.emitEvent('task:failed', taskId, { txid, status: confirmation.status })
@@ -440,5 +463,13 @@ export class StacksSwarm extends EventEmitter {
     const resolver = this.pendingApprovals.get(taskId)
     if (!resolver) throw new Error(`No pending approval for task ${taskId}`)
     resolver(false)
+  }
+
+  // ── Client-side broadcast recording ───────────────────────────────────────
+
+  async recordBroadcast(taskId: string, txid: string): Promise<void> {
+    await this.writeTxidToTask(taskId, txid)
+    await this.updateTaskStatus(taskId, 'complete')
+    this.emitEvent('task:complete', taskId, { txid, clientSigned: true })
   }
 }
