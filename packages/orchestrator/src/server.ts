@@ -540,6 +540,11 @@ async function main() {
     if (goal.length > 500) {
       return c.json({ error: 'goal exceeds 500 characters' }, 400)
     }
+    // Sanitize: strip control chars and trim (prompt injection defense)
+    const sanitizedGoal = goal.replace(/[\x00-\x1f\x7f-\x9f]/g, '').trim()
+    if (!sanitizedGoal) {
+      return c.json({ error: 'goal is empty after sanitization' }, 400)
+    }
     // For frontend, use a default strategy if strategyId maps to a template name
     const defaultTemplates: Record<string, any> = {
       yield: { id: 'yield', name: 'Yield Optimizer', template: 'deposit_yield', mode: 'simple', riskConfig: { maxSlippage: 0.02, maxValue: 50_000_000 }, allocations: {}, active: true, createdAt: Date.now() },
@@ -559,7 +564,7 @@ async function main() {
       }
     }
     try {
-      const task = await swarm.execute(goal, strategy)
+      const task = await swarm.execute(sanitizedGoal, strategy)
       return c.json({ task, taskId: task.id }, 201)
     } catch (e: any) {
       return c.json({ error: e.message }, 400)
@@ -572,6 +577,18 @@ async function main() {
     const { taskId, signedTxHex } = body as { taskId: string; signedTxHex: string }
     if (!taskId || !signedTxHex) {
       return c.json({ error: 'taskId and signedTxHex are required' }, 400)
+    }
+    // Security: validate taskId is UUID format
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)) {
+      return c.json({ error: 'Invalid taskId format' }, 400)
+    }
+    // Security: limit signedTxHex size to prevent DoS (max 10KB hex = 5KB binary)
+    if (signedTxHex.length > 20_000) {
+      return c.json({ error: 'signedTxHex exceeds maximum size' }, 400)
+    }
+    // Security: validate hex characters only
+    if (!/^[0-9a-fA-F]+$/.test(signedTxHex)) {
+      return c.json({ error: 'signedTxHex must be valid hex' }, 400)
     }
 
     try {
@@ -599,8 +616,13 @@ async function main() {
   })
 
   app.post('/api/approve/:id', async (c) => {
+    const id = c.req.param('id')
+    // Validate UUID format
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return c.json({ error: 'Invalid task ID format' }, 400)
+    }
     try {
-      await swarm.humanApprove(c.req.param('id'))
+      await swarm.humanApprove(id)
       return c.json({ approved: true })
     } catch (e: any) {
       return c.json({ error: e.message }, 400)
@@ -608,8 +630,13 @@ async function main() {
   })
 
   app.post('/api/reject/:id', async (c) => {
+    const id = c.req.param('id')
+    // Validate UUID format
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return c.json({ error: 'Invalid task ID format' }, 400)
+    }
     try {
-      await swarm.humanReject(c.req.param('id'))
+      await swarm.humanReject(id)
       return c.json({ rejected: true })
     } catch (e: any) {
       return c.json({ error: e.message }, 400)
