@@ -1,9 +1,11 @@
 // ── SSE Hook ─────────────────────────────────────────────────────────────────
 // Connects to the orchestrator's /stream SSE endpoint and updates React Query
 // cache in real-time, replacing polling for instant UI updates.
+// Also fires toast notifications on task events.
 
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useToast } from '../components/Toast'
 
 export interface SwarmEvent {
   type: string
@@ -14,12 +16,13 @@ export interface SwarmEvent {
 
 export function useSwarmSSE(enabled: boolean) {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const sourceRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
     if (!enabled) return
 
-    const source = new EventSource('/api/../stream')
+    const source = new EventSource('/stream')
     sourceRef.current = source
 
     source.onmessage = (event) => {
@@ -31,9 +34,16 @@ export function useSwarmSSE(enabled: boolean) {
           queryClient.invalidateQueries({ queryKey: ['tasks'] })
         }
 
-        // Invalidate snapshot on completion (balances changed)
+        // Fire toasts on key events
         if (parsed.type === 'task:complete') {
           queryClient.invalidateQueries({ queryKey: ['snapshot'] })
+          toast('success', `Task completed — tx confirmed on chain`)
+        } else if (parsed.type === 'task:failed') {
+          toast('error', `Task failed — ${parsed.data?.status ?? 'see activity for details'}`)
+        } else if (parsed.type === 'task:awaiting_approval') {
+          toast('info', 'New task awaiting your approval')
+        } else if (parsed.type === 'task:risk_rejected') {
+          toast('error', 'Risk Gate rejected — goal exceeds risk threshold')
         }
       } catch {
         // Ignore parse errors (heartbeats, etc.)
@@ -41,7 +51,6 @@ export function useSwarmSSE(enabled: boolean) {
     }
 
     source.onerror = () => {
-      // Auto-reconnect is handled by EventSource
       console.warn('SSE connection error — will auto-reconnect')
     }
 
@@ -49,5 +58,5 @@ export function useSwarmSSE(enabled: boolean) {
       source.close()
       sourceRef.current = null
     }
-  }, [enabled, queryClient])
+  }, [enabled, queryClient, toast])
 }

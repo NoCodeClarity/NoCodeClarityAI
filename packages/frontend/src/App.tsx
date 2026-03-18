@@ -3,6 +3,7 @@ import { Router, Route, Switch } from 'wouter'
 import { WalletProvider, useWallet } from './lib/wallet-context'
 import { useSwarmSSE } from './lib/sse'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ToastProvider } from './components/Toast'
 import { Console } from './pages/Console'
 import { Activity } from './pages/Activity'
 import { Vault } from './pages/Vault'
@@ -45,7 +46,9 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <WalletProvider>
-          <AppRoutes />
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
         </WalletProvider>
       </QueryClientProvider>
     </ErrorBoundary>

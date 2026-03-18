@@ -2,6 +2,7 @@ import { useWallet } from '../lib/wallet-context'
 import { Navbar } from '../components/Navbar'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { OnboardingFlow } from '../components/OnboardingFlow'
+import { OnboardingTutorial } from '../components/OnboardingTutorial'
 import { PortfolioSidebar } from '../components/PortfolioSidebar'
 import { ExecutionFeed } from '../components/ExecutionFeed'
 import { CommandPanel } from '../components/CommandPanel'
@@ -28,6 +29,9 @@ export function Console() {
   return (
     <div className="h-screen flex flex-col bg-[hsl(var(--background))] overflow-hidden">
       <Navbar />
+
+      {/* Onboarding tutorial — shows once after wallet connect */}
+      <OnboardingTutorial />
 
       {/* Mobile Tab Bar */}
       <div className="flex lg:hidden border-b border-[hsl(var(--border)/0.3)]">

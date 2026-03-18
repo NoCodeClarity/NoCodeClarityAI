@@ -1,0 +1,28 @@
+# NoCodeClarity AI — Netlify Configuration
+# This overrides any auto-detected settings.
+
+[build]
+  base = "packages/frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA fallback — all routes serve index.html
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR_RAILWAY_URL.railway.app/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/stream"
+  to = "https://YOUR_RAILWAY_URL.railway.app/stream"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "20"
