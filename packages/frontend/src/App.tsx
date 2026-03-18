@@ -2,9 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Router, Route, Switch } from 'wouter'
 import { WalletProvider, useWallet } from './lib/wallet-context'
 import { useSwarmSSE } from './lib/sse'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Console } from './pages/Console'
 import { Activity } from './pages/Activity'
 import { Vault } from './pages/Vault'
+import { Stacking } from './pages/Stacking'
+import { Triggers } from './pages/Triggers'
+import { Strategies } from './pages/Strategies'
 import { NotFound } from './pages/NotFound'
 
 const queryClient = new QueryClient({
@@ -12,6 +16,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       staleTime: 60_000,
+      retry: 2,
     },
   },
 })
@@ -26,6 +31,9 @@ function AppRoutes() {
         <Route path="/" component={Console} />
         <Route path="/activity" component={Activity} />
         <Route path="/vault" component={Vault} />
+        <Route path="/stacking" component={Stacking} />
+        <Route path="/triggers" component={Triggers} />
+        <Route path="/strategies" component={Strategies} />
         <Route component={NotFound} />
       </Switch>
     </Router>
@@ -34,10 +42,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <WalletProvider>
-        <AppRoutes />
-      </WalletProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <WalletProvider>
+          <AppRoutes />
+        </WalletProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

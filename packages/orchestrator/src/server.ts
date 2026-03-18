@@ -58,6 +58,44 @@ app.use('*', cors({
 // Structured request logging
 app.use('*', requestLogger())
 
+// ── Rate limiter for /api/* routes ──────────────────────────────────────────
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 30
+
+function rateLimiter() {
+  return async (c: any, next: any) => {
+    const ip = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown'
+    const now = Date.now()
+
+    let entry = rateLimitMap.get(ip)
+    if (!entry || now > entry.resetAt) {
+      entry = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
+      rateLimitMap.set(ip, entry)
+    }
+
+    entry.count++
+    if (entry.count > RATE_LIMIT_MAX) {
+      return c.json({ error: 'Rate limit exceeded. Try again in 60 seconds.' }, 429)
+    }
+
+    await next()
+  }
+}
+
+// Apply rate limiter to /api/* routes
+app.use('/api/*', rateLimiter())
+
+// Clean up stale rate limit entries every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip)
+  }
+}, 5 * 60_000)
+
+
 // Auth middleware for mutating routes
 function authMiddleware() {
   return async (c: any, next: any) => {
