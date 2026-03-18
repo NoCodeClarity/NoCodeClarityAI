@@ -154,12 +154,18 @@ Open **http://localhost:5173** → connect Leather or Xverse → pick a strategy
 
 ```
 nocodeclarity-ai/
-├── packages/frontend/               → React + Vite frontend
-│   ├── OnboardingFlow               → Stacks Connect (Leather/Xverse) → strategy → deploy
+├── packages/frontend/               → React + Vite + Tailwind CSS v4
 │   ├── Console                      → 3-panel: portfolio + execution feed + commands
-│   ├── Activity                     → Completed task history with Hiro Explorer links
+│   ├── Activity                     → Task history with Hiro Explorer links
 │   ├── Vault                        → STX/sBTC balance cards + yield positions
-│   └── WalletProvider               → @stacks/connect context (no seed phrase needed)
+│   ├── Stacking                     → PoX dashboard: solo stack (1-12 cycles) + pool delegation
+│   ├── Triggers                     → Chain trigger manager (6 condition types)
+│   ├── Strategies                   → Marketplace: browse/import/share strategies
+│   ├── OnboardingFlow               → Stacks Connect (Leather/Xverse) → strategy selection
+│   ├── SBTCPanel                    → sBTC deposit/withdraw with peg health monitoring
+│   ├── NetworkToggle                → Mainnet/testnet switch (persisted)
+│   ├── ErrorBoundary                → Graceful error handling on all pages
+│   └── WalletProvider               → @stacks/connect + network state + cleanup
 │
 ├── packages/tools/                  → Protocol interactions
 │   ├── read/hiro.ts                 → 10 read tools (Hiro API)
@@ -167,19 +173,19 @@ nocodeclarity-ai/
 │   ├── read/signers.ts              → Nakamoto signer health monitor
 │   └── write/builders.ts            → 12 transaction builders (all protocols)
 │
-├── packages/agents/                 → AI pipeline
+├── packages/agents/                 → AI pipeline (direct fetch, no SDK)
 │   ├── Analyst                      → LLM-powered chain analysis
 │   ├── Risk Gate                    → Rule-based risk scoring
 │   └── Executor                     → Sign + broadcast with hash check
 │
 ├── packages/orchestrator/           → Core engine
-│   ├── index.ts (StacksSwarm)       → Pipeline coordinator + DB helpers
-│   ├── server.ts                    → Hono HTTP + SSE + API routes + SPA serving
+│   ├── index.ts (StacksSwarm)       → Pipeline coordinator + DB + memory embeddings
+│   ├── server.ts                    → Hono HTTP + SSE + API + rate limiter + SPA
 │   ├── scheduler.ts                 → Recurring task scheduler
 │   ├── triggers.ts                  → Chainhook-style event trigger engine
-│   ├── embeddings.ts                → Agent memory (LLM summaries + vectors)
+│   ├── embeddings.ts                → Agent memory (pgvector + OpenAI embeddings)
 │   ├── sharing.ts                   → Strategy export/import/URL sharing
-│   └── db/                          → Drizzle schema + dual-mode DB client
+│   └── db/                          → Drizzle schema + pgvector + dual-mode client
 │
 ├── Dockerfile                       → Railway deployment (Bun runtime)
 ├── docker-compose.yml               → Local dev: PostgreSQL + pgvector
@@ -198,10 +204,12 @@ nocodeclarity-ai/
 | **Kill switch** | `POST /pause` — no auth required, halts ALL active tasks instantly. |
 | **Goal sanitization** | 500-char limit, control character stripping, prompt injection defense. |
 | **API auth** | All mutating endpoints require `ORCHESTRATOR_SECRET`. |
+| **Rate limiting** | 30 req/min/IP on `/api/*`, max 20 recurring tasks, max 10 triggers, min 60s cooldown. |
+| **Input validation** | UUID format on task IDs, hex-only + 10KB limit on broadcast payloads, regex on contracts. |
 | **Non-custodial** | Your keys never leave your server. No cloud custody. |
 | **Trigger whitelist** | Only 6 validated condition types accepted — no arbitrary code execution. |
-| **Rate limits** | Max 20 recurring tasks, max 10 triggers, min 60s cooldown. |
-| **Contract validation** | Contract IDs regex-validated before any API call. |
+
+> **Security Audit:** Audited by [Jubilee Labs](https://github.com/Jubilee-Protocol). 9 findings, all Critical/High remediated. Report available on request.
 
 ---
 
