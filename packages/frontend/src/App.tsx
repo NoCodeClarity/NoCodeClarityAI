@@ -7,6 +7,7 @@ import { ToastProvider } from './components/Toast'
 import { Console } from './pages/Console'
 import { Activity } from './pages/Activity'
 import { Vault } from './pages/Vault'
+import { Analytics } from './pages/Analytics'
 import { Stacking } from './pages/Stacking'
 import { Triggers } from './pages/Triggers'
 import { Strategies } from './pages/Strategies'
@@ -32,6 +33,7 @@ function AppRoutes() {
         <Route path="/" component={Console} />
         <Route path="/activity" component={Activity} />
         <Route path="/vault" component={Vault} />
+        <Route path="/analytics" component={Analytics} />
         <Route path="/stacking" component={Stacking} />
         <Route path="/triggers" component={Triggers} />
         <Route path="/strategies" component={Strategies} />

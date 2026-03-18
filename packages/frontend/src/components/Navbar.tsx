@@ -2,7 +2,8 @@ import { Link, useLocation } from 'wouter'
 import { useWallet } from '../lib/wallet-context'
 import { truncateAddress } from '../lib/utils'
 import { NetworkToggle } from './NetworkToggle'
-import { Activity, Vault, Terminal, Wifi, WifiOff, LogOut, Layers, Zap, ShoppingBag, Menu, X } from 'lucide-react'
+import { ThemeToggle } from './ThemeToggle'
+import { Activity, Vault, Terminal, Wifi, WifiOff, LogOut, Layers, Zap, ShoppingBag, BarChart3, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 
 export function Navbar() {
@@ -14,6 +15,7 @@ export function Navbar() {
     { href: '/', label: 'Console', icon: Terminal },
     { href: '/activity', label: 'Activity', icon: Activity },
     { href: '/vault', label: 'Vault', icon: Vault },
+    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     { href: '/stacking', label: 'Stacking', icon: Layers },
     { href: '/triggers', label: 'Triggers', icon: Zap },
     { href: '/strategies', label: 'Strategies', icon: ShoppingBag },
@@ -27,20 +29,20 @@ export function Navbar() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(var(--accent))] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-[hsl(var(--primary)/0.3)]">
             ✕
           </div>
-          <span className="font-bold text-white tracking-tight hidden sm:inline">
+          <span className="font-bold text-[hsl(var(--foreground))] tracking-tight hidden sm:inline">
             NoCodeClarity <span className="text-[hsl(var(--accent))]">AI</span>
           </span>
         </Link>
 
         {/* Desktop Nav Links */}
-        <div className="hidden lg:flex items-center gap-1">
+        <div className="hidden xl:flex items-center gap-1">
           {links.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}>
               <span className={`
                 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer
                 ${location === href
                   ? 'bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]'
-                  : 'text-[hsl(var(--muted-foreground))] hover:text-white hover:bg-[hsl(var(--muted)/0.5)]'
+                  : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/0.5)]'
                 }
               `}>
                 <Icon className="w-3.5 h-3.5" />
@@ -50,20 +52,19 @@ export function Navbar() {
           ))}
         </div>
 
-        {/* Right: Network + Wallet + Mobile Menu */}
-        <div className="flex items-center gap-2">
-          <div className="hidden md:block">
-            <NetworkToggle />
-          </div>
+        {/* Right: Theme + Network + Wallet + Mobile Menu */}
+        <div className="flex items-center gap-1.5">
+          <div className="hidden md:block"><ThemeToggle /></div>
+          <div className="hidden md:block"><NetworkToggle /></div>
           {connected ? (
             <>
               <div className="flex items-center gap-2 bg-[hsl(var(--secondary))] px-3 py-1.5 rounded-full border border-[hsl(var(--border))] text-xs sm:text-sm">
                 <Wifi className="w-3 h-3 text-emerald-400" />
-                <span className="font-mono text-white">{truncateAddress(address)}</span>
+                <span className="font-mono text-[hsl(var(--foreground))]">{truncateAddress(address)}</span>
               </div>
               <button
                 onClick={disconnect}
-                className="hidden sm:block p-2 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-white hover:bg-[hsl(var(--muted)/0.5)] transition-colors"
+                className="hidden sm:block p-2 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/0.5)] transition-colors"
                 title="Disconnect"
               >
                 <LogOut className="w-4 h-4" />
@@ -78,7 +79,7 @@ export function Navbar() {
           {/* Mobile hamburger */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="lg:hidden p-2 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-white"
+            className="xl:hidden p-2 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -87,7 +88,7 @@ export function Navbar() {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-[hsl(var(--border)/0.3)] bg-[hsl(var(--background)/0.95)] backdrop-blur-xl p-4 space-y-2">
+        <div className="xl:hidden border-t border-[hsl(var(--border)/0.3)] bg-[hsl(var(--background)/0.95)] backdrop-blur-xl p-4 space-y-2">
           {links.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}>
               <span
@@ -96,7 +97,7 @@ export function Navbar() {
                   flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer
                   ${location === href
                     ? 'bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]'
-                    : 'text-[hsl(var(--muted-foreground))] hover:text-white hover:bg-[hsl(var(--muted)/0.3)]'
+                    : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/0.3)]'
                   }
                 `}
               >
@@ -104,7 +105,8 @@ export function Navbar() {
               </span>
             </Link>
           ))}
-          <div className="pt-2 border-t border-[hsl(var(--border)/0.3)]">
+          <div className="pt-2 border-t border-[hsl(var(--border)/0.3)] flex items-center gap-2">
+            <ThemeToggle />
             <NetworkToggle />
           </div>
           {connected && (

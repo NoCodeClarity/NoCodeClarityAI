@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchSnapshot } from '../lib/api'
 import { useWallet } from '../lib/wallet-context'
+import { getTokenMeta } from '../lib/tokens'
 import { Navbar } from '../components/Navbar'
 import { formatSTX, formatSBTC, truncateAddress } from '../lib/utils'
 import { Coins, Wallet, ShieldCheck, MoreHorizontal } from 'lucide-react'
@@ -109,17 +110,19 @@ export function Vault() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[hsl(var(--border))]">
-                    {data.tokenBalances.map((t, i) => (
+                    {data.tokenBalances.map((t, i) => {
+                      const meta = getTokenMeta(t.symbol)
+                      return (
                       <tr key={i} className="hover:bg-white/5 transition-colors">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[hsl(var(--primary)/0.2)] text-[hsl(var(--primary))] flex items-center justify-center font-bold text-xs">
-                              {t.symbol[0]}
+                            <div className={`w-8 h-8 rounded-full ${meta.color} flex items-center justify-center text-white font-bold text-sm`}>
+                              {meta.icon}
                             </div>
-                            <span className="font-medium text-white">{t.symbol}</span>
+                            <span className="font-medium text-white">{meta.symbol}</span>
                           </div>
                         </td>
-                        <td className="p-4 text-[hsl(var(--muted-foreground))]">{t.name}</td>
+                        <td className="p-4 text-[hsl(var(--muted-foreground))]">{meta.name} <span className="text-xs opacity-60">({meta.protocol})</span></td>
                         <td className="p-4 text-right font-mono text-white">{t.balanceFormatted}</td>
                         <td className="p-4">
                           <button className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
@@ -127,7 +130,7 @@ export function Vault() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               )}
