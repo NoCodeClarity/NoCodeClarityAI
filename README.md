@@ -1,7 +1,7 @@
 # NoCodeClarity AI 🤖⚡
 
-[![Stacks](https://img.shields.io/badge/Stacks-Bitcoin_L2-5546FF)](https://www.stacks.co)
-[![sBTC](https://img.shields.io/badge/sBTC-Enabled-f7931a?logo=bitcoin&logoColor=white)](https://www.stacks.co/sbtc)
+[![Stacks](https://img.shields.io/badge/Stacks-Bitcoin_L2-5546FF)](https://github.com/stacks-network/stacks)
+[![sBTC](https://img.shields.io/badge/sBTC-Enabled-f7931a?logo=bitcoin&logoColor=white)](https://github.com/stacks-network/sbtc)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-Compatible-purple)](https://github.com/Jubilee-Protocol/Openclaw-Skill-Jubilee)
 [![AIBTC](https://img.shields.io/badge/AIBTC-Network-orange)](https://aibtc.dev)
