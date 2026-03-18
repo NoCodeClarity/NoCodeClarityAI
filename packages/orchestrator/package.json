@@ -11,6 +11,8 @@
     "@nocodeclarity/agents": "workspace:*",
     "@nocodeclarity/tools": "workspace:*",
     "@anthropic-ai/sdk": "^0.39.0",
+    "@stacks/network": "^6.13.0",
+    "@stacks/transactions": "^6.15.0",
     "@stacks/wallet-sdk": "^6.2.0",
     "hono": "^4.0.0",
     "@hono/node-server": "^1.9.0",
